@@ -1,0 +1,117 @@
+description: TPC-H benchmark exploiting fused operator. Adapted TPC-H Q3.
+suite: holistic-optimization
+benchmark: tpch
+name: fused (q3)
+readonly: true
+data:
+    'lineitem':
+        file: 'benchmark/tpc-h/data/lineitem.tbl'
+        delimiter: '|'
+        header: 0
+        attributes:
+            'l_orderkey':      'INT NOT NULL'
+            'l_partkey':       'INT NOT NULL'
+            'l_suppkey':       'INT NOT NULL'
+            'l_linenumber':    'INT NOT NULL'
+            'l_quantity':      'DECIMAL 10 2 NOT NULL'
+            'l_extendedprice': 'DECIMAL 10 2 NOT NULL'
+            'l_discount':      'DECIMAL 10 2 NOT NULL'
+            'l_tax':           'DECIMAL 10 2 NOT NULL'
+            'l_returnflag':    'CHAR 1 NOT NULL'
+            'l_linestatus':    'CHAR 1 NOT NULL'
+            'l_shipdate':      'DATE NOT NULL'
+            'l_commitdate':    'DATE NOT NULL'
+            'l_receiptdate':   'DATE NOT NULL'
+            'l_shipinstruct':  'CHAR 25 NOT NULL'
+            'l_shipmode':      'CHAR 10 NOT NULL'
+            'l_comment':       'CHAR 44 NOT NULL'
+    'orders':
+        file: 'benchmark/tpc-h/data/orders.tbl'
+        delimiter: '|'
+        header: 0
+        attributes:
+            'o_orderkey':      'INT 4 NOT NULL PRIMARY KEY'
+            'o_custkey':       'INT 4 NOT NULL'
+            'o_orderstatus':   'CHAR 1 NOT NULL'
+            'o_totalprice':    'DECIMAL 10 2 NOT NULL'
+            'o_orderdate':     'DATE NOT NULL'
+            'o_orderpriority': 'CHAR 15 NOT NULL'
+            'o_clerk':         'CHAR 15 NOT NULL'
+            'o_shippriority':  'INT 4 NOT NULL'
+            'o_comment':       'CHAR 80 NOT NULL'
+    'customer':
+        file: 'benchmark/tpc-h/data/customer.tbl'
+        delimiter: '|'
+        header: 0
+        attributes:
+            'c_custkey':    'INT 4 NOT NULL PRIMARY KEY'
+            'c_name':       'CHAR 25 NOT NULL'
+            'c_address':    'CHAR 40 NOT NULL'
+            'c_nationkey':  'INT 4 NOT NULL'
+            'c_phone':      'CHAR 15 NOT NULL'
+            'c_acctbal':    'DECIMAL 10 2 NOT NULL'
+            'c_mktsegment': 'CHAR 10 NOT NULL'
+            'c_comment':    'CHAR 117 NOT NULL'
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/tpch-fused_q3_adapted.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (DPccp)':
+                args: --optimizer-topk 2 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            dummy: >-
+                SELECT l_orderkey, SUM(l_extendedprice) AS revenue, o_orderdate, o_shippriority
+                FROM
+                    customer,
+                    orders,
+                    lineitem
+                WHERE
+                    c_mktsegment = "BUILDING" AND
+                    c_custkey = o_custkey AND
+                    l_orderkey = o_orderkey AND
+                    o_orderdate < d'1995-04-15' AND
+                    l_shipdate > d'1995-04-15'
+                GROUP BY l_orderkey, o_orderdate, o_shippriority
+                ORDER BY revenue DESC, o_orderdate
+                LIMIT 10;

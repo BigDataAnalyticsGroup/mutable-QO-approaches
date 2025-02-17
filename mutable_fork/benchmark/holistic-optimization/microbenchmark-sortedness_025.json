@@ -1,0 +1,11 @@
+{
+    "holistic_optimization": [
+        { "relations": ["R"], "size": 0.25e8 },
+        { "relations": ["S"], "size": 0.275e6 },
+        { "relations": ["T"], "size": 0.25e7 },
+        { "relations": ["R", "S"], "size": 275000 },
+        { "relations": ["S", "T"], "size": 62102 },
+        { "relations": ["R", "T"], "size": 2500000 },
+        { "relations": ["R", "S", "T"], "size": 62102 }
+    ]
+}

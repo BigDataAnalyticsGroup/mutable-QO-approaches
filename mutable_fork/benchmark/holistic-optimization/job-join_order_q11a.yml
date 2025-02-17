@@ -1,0 +1,212 @@
+description: IMDb benchmark exploiting different join order. JOB Q11a.
+suite: holistic-optimization
+benchmark: job
+name: join order (q11a)
+readonly: true
+data:
+    'company_name':
+        file: 'benchmark/job/data/company_name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'name':          'CHAR 100 NOT NULL'
+            'country_code':  'CHAR 6'
+            'imdb_id':       'INT'
+            'name_pcode_nf': 'CHAR 5'
+            'name_pcode_sf': 'CHAR 5'
+            'md5sum':        'CHAR 32'
+        indexes:
+            'id_company_name':
+                attributes: 'id'
+    'company_type':
+        file: 'benchmark/job/data/company_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'kind': 'CHAR 32 NOT NULL'
+        indexes:
+            'id_company_type':
+                attributes: 'id'
+    'movie_companies':
+        file: 'benchmark/job/data/movie_companies.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'movie_id':        'INT NOT NULL'
+            'company_id':      'INT NOT NULL'
+            'company_type_id': 'INT NOT NULL'
+            'note':            'CHAR 100'
+        indexes:
+            'id_movie_companies':
+                attributes: 'id'
+            'movie_id_movie_companies':
+                attributes: 'movie_id'
+            'company_id_movie_companies':
+                attributes: 'company_id'
+            'company_type_id_movie_companies':
+                attributes: 'company_type_id'
+    'title':
+        file: 'benchmark/job/data/title.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'title':           'CHAR 100 NOT NULL'
+            'imdb_index':      'CHAR 5'
+            'kind_id':         'INT NOT NULL'
+            'production_year': 'INT'
+            'imdb_id':         'INT'
+            'phonetic_code':   'CHAR 5'
+            'episode_of_id':   'INT'
+            'season_nr':       'INT'
+            'episode_nr':      'INT'
+            'series_years':    'CHAR 49'
+            'md5sum':          'CHAR 32'
+        indexes:
+            'id_title':
+                attributes: 'id'
+            'kind_id_title':
+                attributes: 'kind_id'
+    'link_type':
+        file: 'benchmark/job/data/link_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'link': 'CHAR 32 NOT NULL'
+        indexes:
+            'id_link_type':
+                attributes: 'id'
+    'movie_keyword':
+        file: 'benchmark/job/data/movie_keyword.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':         'INT NOT NULL PRIMARY KEY'
+            'movie_id':   'INT NOT NULL'
+            'keyword_id': 'INT NOT NULL'
+        indexes:
+            'id_movie_keyword':
+                attributes: 'id'
+            'movie_id_movie_keyword':
+                attributes: 'movie_id'
+            'keyword_id_movie_keyword':
+                attributes: 'keyword_id'
+    'movie_link':
+        file: 'benchmark/job/data/movie_link.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'movie_id':        'INT NOT NULL'
+            'linked_movie_id': 'INT NOT NULL'
+            'link_type_id':    'INT NOT NULL'
+        indexes:
+            'id_movie_link':
+                attributes: 'id'
+            'movie_id_movie_link':
+                attributes: 'movie_id'
+            'linked_movie_id_movie_link':
+                attributes: 'linked_movie_id'
+            'link_type_id_movie_link':
+                attributes: 'link_type_id'
+    'keyword':
+        file: 'benchmark/job/data/keyword.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'keyword':       'CHAR 100 NOT NULL'
+            'phonetic_code': 'CHAR 5'
+        indexes:
+            'id_keyword':
+                attributes: 'id'
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/job-join_order_q11a.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (DPccp)':
+                args: --optimizer-topk 35 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            dummy: >-
+                SELECT mc.note, cn.name, lt.link, t.title
+                FROM
+                    movie_companies AS mc,
+                    company_name AS cn,
+                    company_type AS ct,
+                    keyword AS k,
+                    movie_keyword AS mk,
+                    link_type AS lt,
+                    movie_link AS ml,
+                    title AS t
+                WHERE
+                ISNULL(    mc.note) AND
+                    cn.country_code != "[pl]" AND
+                    (cn.name LIKE "%Film%" OR cn.name LIKE "%Warner%") AND
+                    ct.kind = "production companies" AND
+                    k.keyword = "sequel" AND
+                    lt.link LIKE "%follow%" AND
+                    t.production_year >= 1950 AND
+                    t.production_year <= 2000 AND
+                    ml.movie_id = t.id AND
+                    ml.movie_id = mc.movie_id AND
+                    mk.movie_id = mc.movie_id AND
+                    t.id = mc.movie_id AND
+                    t.id = mk.movie_id AND
+                    ml.movie_id = mk.movie_id AND
+                    lt.id = ml.link_type_id AND
+                    mk.keyword_id = k.id AND
+                    mc.company_type_id = ct.id AND
+                    mc.company_id = cn.id;

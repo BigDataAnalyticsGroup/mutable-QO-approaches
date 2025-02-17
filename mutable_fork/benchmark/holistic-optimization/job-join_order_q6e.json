@@ -1,0 +1,23 @@
+{
+    "holistic_optimization": [
+        {"relations": ["ci"], "size": 36244344},
+        {"relations": ["k"], "size": 1},
+        {"relations": ["mk"], "size": 4523930},
+        {"relations": ["n"], "size": 2},
+        {"relations": ["t"], "size": 1381453},
+        {"relations": ["ci", "mk"], "size": 215765477},
+        {"relations": ["ci", "n"], "size": 486},
+        {"relations": ["ci", "t"], "size": 21334720},
+        {"relations": ["k", "mk"], "size": 14},
+        {"relations": ["mk", "t"], "size": 1970380},
+        {"relations": ["ci", "k", "mk"], "size": 1242},
+        {"relations": ["ci", "mk", "n"], "size": 10066},
+        {"relations": ["ci", "mk", "t"], "size": 114182642},
+        {"relations": ["ci", "n", "t"], "size": 306},
+        {"relations": ["k", "mk", "t"], "size": 11},
+        {"relations": ["ci", "k", "mk", "n"], "size": 6},
+        {"relations": ["ci", "k", "mk", "t"], "size": 1224},
+        {"relations": ["ci", "mk", "n", "t"], "size": 5202},
+        {"relations": ["t", "k", "mk", "n", "ci"], "size": 6}
+    ]
+}

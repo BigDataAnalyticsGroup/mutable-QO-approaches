@@ -1,0 +1,16 @@
+networks:
+  local:
+
+services:
+  mutable:
+    image: mutable
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mutable
+    networks:
+      - local
+    ports:
+      - "8888:8888"
+    stdin_open: true
+    tty: true

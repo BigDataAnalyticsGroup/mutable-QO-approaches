@@ -1,0 +1,14 @@
+{
+    "holistic_optimization": [
+        { "relations": ["R"], "size": 1e3 },
+        { "relations": ["S"], "size": 1e5 },
+        { "relations": ["T"], "size": 1e4 },
+        { "relations": ["U"], "size": 1e2 },
+        { "relations": ["R", "S"], "size": 1e3 },
+        { "relations": ["S", "T"], "size": 1e4 },
+        { "relations": ["T", "U"], "size": 1e4 },
+        { "relations": ["R", "S", "T"], "size": 1105 },
+        { "relations": ["S", "T", "U"], "size": 1e4 },
+        { "relations": ["R", "S", "T", "U"], "size": 1105 }
+    ]
+}

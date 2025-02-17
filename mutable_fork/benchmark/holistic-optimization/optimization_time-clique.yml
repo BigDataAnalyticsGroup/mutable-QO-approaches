@@ -1,0 +1,260 @@
+description: Measuring optimization time for clique queries.
+suite: holistic-optimization
+benchmark: optimization time
+name: clique
+readonly: true
+data:
+    'A':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'B':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'C':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'D':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'E':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'F':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'G':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'H':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'I':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'jid': 'INT NOT NULL'# REFERENCES J(id)'
+    'J':
+        attributes:
+            'id':  'INT NOT NULL'# PRIMARY KEY'
+            'aid': 'INT NOT NULL'# REFERENCES A(id)'
+            'bid': 'INT NOT NULL'# REFERENCES B(id)'
+            'cid': 'INT NOT NULL'# REFERENCES C(id)'
+            'did': 'INT NOT NULL'# REFERENCES D(id)'
+            'eid': 'INT NOT NULL'# REFERENCES E(id)'
+            'fid': 'INT NOT NULL'# REFERENCES F(id)'
+            'gid': 'INT NOT NULL'# REFERENCES G(id)'
+            'hid': 'INT NOT NULL'# REFERENCES H(id)'
+            'iid': 'INT NOT NULL'# REFERENCES I(id)'
+systems:
+    mutable:
+        args: --backend WasmV8 --dryrun
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+            'top-2 (DPccp)':
+                args: --optimizer-topk 2 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'top-2 (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'top-5 (DPccp)':
+                args: --optimizer-topk 5 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'top-5 (PEall)':
+                args: --optimizer-topk 5 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'top-10 (DPccp)':
+                args: --optimizer-topk 10 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'top-10 (PEall)':
+                args: --optimizer-topk 10 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+        cases:
+            2: >-
+                SELECT 1
+                FROM A, B
+                WHERE A.bid = B.id AND
+                      B.aid = A.id;
+            3: >-
+                SELECT 1
+                FROM A, B, C
+                WHERE A.bid = B.id AND A.cid = C.id AND
+                      B.aid = A.id AND B.cid = C.id AND
+                      C.aid = A.id AND C.bid = B.id;
+            4: >-
+                SELECT 1
+                FROM A, B, C, D
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id;
+            5: >-
+                SELECT 1
+                FROM A, B, C, D, E
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id;
+            6: >-
+                SELECT 1
+                FROM A, B, C, D, E, F
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND A.fid = F.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND B.fid = F.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND C.fid = F.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND D.fid = F.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id AND E.fid = F.id AND
+                      F.aid = A.id AND F.bid = B.id AND F.cid = C.id AND F.did = D.id AND F.eid = E.id;
+            7: >-
+                SELECT 1
+                FROM A, B, C, D, E, F, G
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND A.fid = F.id AND A.gid = G.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND B.fid = F.id AND B.gid = G.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND C.fid = F.id AND C.gid = G.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND D.fid = F.id AND D.gid = G.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id AND E.fid = F.id AND E.gid = G.id AND
+                      F.aid = A.id AND F.bid = B.id AND F.cid = C.id AND F.did = D.id AND F.eid = E.id AND F.gid = G.id AND
+                      G.aid = A.id AND G.bid = B.id AND G.cid = C.id AND G.did = D.id AND G.eid = E.id AND G.fid = F.id;
+            8: >-
+                SELECT 1
+                FROM A, B, C, D, E, F, G, H
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND A.fid = F.id AND A.gid = G.id AND A.hid = H.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND B.fid = F.id AND B.gid = G.id AND B.hid = H.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND C.fid = F.id AND C.gid = G.id AND C.hid = H.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND D.fid = F.id AND D.gid = G.id AND D.hid = H.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id AND E.fid = F.id AND E.gid = G.id AND E.hid = H.id AND
+                      F.aid = A.id AND F.bid = B.id AND F.cid = C.id AND F.did = D.id AND F.eid = E.id AND F.gid = G.id AND F.hid = H.id AND
+                      G.aid = A.id AND G.bid = B.id AND G.cid = C.id AND G.did = D.id AND G.eid = E.id AND G.fid = F.id AND G.hid = H.id AND
+                      H.aid = A.id AND H.bid = B.id AND H.cid = C.id AND H.did = D.id AND H.eid = E.id AND H.fid = F.id AND H.gid = G.id;
+            9: >-
+                SELECT 1
+                FROM A, B, C, D, E, F, G, H, I
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND A.fid = F.id AND A.gid = G.id AND A.hid = H.id AND A.iid = I.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND B.fid = F.id AND B.gid = G.id AND B.hid = H.id AND B.iid = I.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND C.fid = F.id AND C.gid = G.id AND C.hid = H.id AND C.iid = I.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND D.fid = F.id AND D.gid = G.id AND D.hid = H.id AND D.iid = I.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id AND E.fid = F.id AND E.gid = G.id AND E.hid = H.id AND E.iid = I.id AND
+                      F.aid = A.id AND F.bid = B.id AND F.cid = C.id AND F.did = D.id AND F.eid = E.id AND F.gid = G.id AND F.hid = H.id AND F.iid = I.id AND
+                      G.aid = A.id AND G.bid = B.id AND G.cid = C.id AND G.did = D.id AND G.eid = E.id AND G.fid = F.id AND G.hid = H.id AND G.iid = I.id AND
+                      H.aid = A.id AND H.bid = B.id AND H.cid = C.id AND H.did = D.id AND H.eid = E.id AND H.fid = F.id AND H.gid = G.id AND H.iid = I.id AND
+                      I.aid = A.id AND I.bid = B.id AND I.cid = C.id AND I.did = D.id AND I.eid = E.id AND I.fid = F.id AND I.gid = G.id AND I.hid = H.id;
+            10: >-
+                SELECT 1
+                FROM A, B, C, D, E, F, G, H, I, J
+                WHERE A.bid = B.id AND A.cid = C.id AND A.did = D.id AND A.eid = E.id AND A.fid = F.id AND A.gid = G.id AND A.hid = H.id AND A.iid = I.id AND A.jid = J.id AND
+                      B.aid = A.id AND B.cid = C.id AND B.did = D.id AND B.eid = E.id AND B.fid = F.id AND B.gid = G.id AND B.hid = H.id AND B.iid = I.id AND B.jid = J.id AND
+                      C.aid = A.id AND C.bid = B.id AND C.did = D.id AND C.eid = E.id AND C.fid = F.id AND C.gid = G.id AND C.hid = H.id AND C.iid = I.id AND C.jid = J.id AND
+                      D.aid = A.id AND D.bid = B.id AND D.cid = C.id AND D.eid = E.id AND D.fid = F.id AND D.gid = G.id AND D.hid = H.id AND D.iid = I.id AND D.jid = J.id AND
+                      E.aid = A.id AND E.bid = B.id AND E.cid = C.id AND E.did = D.id AND E.fid = F.id AND E.gid = G.id AND E.hid = H.id AND E.iid = I.id AND E.jid = J.id AND
+                      F.aid = A.id AND F.bid = B.id AND F.cid = C.id AND F.did = D.id AND F.eid = E.id AND F.gid = G.id AND F.hid = H.id AND F.iid = I.id AND F.jid = J.id AND
+                      G.aid = A.id AND G.bid = B.id AND G.cid = C.id AND G.did = D.id AND G.eid = E.id AND G.fid = F.id AND G.hid = H.id AND G.iid = I.id AND G.jid = J.id AND
+                      H.aid = A.id AND H.bid = B.id AND H.cid = C.id AND H.did = D.id AND H.eid = E.id AND H.fid = F.id AND H.gid = G.id AND H.iid = I.id AND H.jid = J.id AND
+                      I.aid = A.id AND I.bid = B.id AND I.cid = C.id AND I.did = D.id AND I.eid = E.id AND I.fid = F.id AND I.gid = G.id AND I.hid = H.id AND I.jid = J.id AND
+                      J.aid = A.id AND J.bid = B.id AND J.cid = C.id AND J.did = D.id AND J.eid = E.id AND J.fid = F.id AND J.gid = G.id AND J.hid = H.id AND J.iid = I.id;

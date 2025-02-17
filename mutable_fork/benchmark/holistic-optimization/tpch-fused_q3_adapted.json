@@ -1,0 +1,11 @@
+{
+    "holistic_optimization": [
+      { "relations": ["customer"], "size": 30142 },
+      { "relations": ["lineitem"], "size": 3163439 },
+      { "relations": ["orders"], "size": 746648 },
+      { "relations": ["customer", "orders"], "size": 151008 },
+      { "relations": ["orders", "lineitem"], "size": 150651 },
+      { "relations": ["customer", "orders", "lineitem"], "size": 30169 },
+      { "relations": ["g#l_orderkey#o_orderdate#o_shippriority"], "size": 11540 }
+    ]
+}

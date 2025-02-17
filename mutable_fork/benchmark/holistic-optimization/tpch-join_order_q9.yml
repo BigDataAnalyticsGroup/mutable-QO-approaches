@@ -1,0 +1,136 @@
+description: TPC-H benchmark exploiting different join order. TPC-H Q9.
+suite: holistic-optimization
+benchmark: tpch
+name: join order (q9)
+readonly: true
+data:
+    'Partsupp':
+        file: benchmark/tpc-h/data/partsupp.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            'ps_partkey':    'INT 4 NOT NULL'
+            'ps_suppkey':    'INT 4 NOT NULL'
+            'ps_availqty':   'INT 4 NOT NULL'
+            'ps_supplycost': 'DECIMAL 10 2 NOT NULL'
+            'ps_comment':    'VARCHAR 199 NOT NULL'
+    'Supplier':
+        file: benchmark/tpc-h/data/supplier.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            's_suppkey':   'INT 4 NOT NULL PRIMARY KEY'
+            's_name':      'CHAR 25 NOT NULL'
+            's_address':   'VARCHAR 40 NOT NULL'
+            's_nationkey': 'INT 4 NOT NULL'
+            's_phone':     'CHAR 15 NOT NULL'
+            's_acctbal':   'DECIMAL 10 2 NOT NULL'
+            's_comment':   'VARCHAR 101 NOT NULL'
+    'Lineitem':
+        file: benchmark/tpc-h/data/lineitem.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            'l_orderkey':      'INT NOT NULL'
+            'l_partkey':       'INT NOT NULL'
+            'l_suppkey':       'INT NOT NULL'
+            'l_linenumber':    'INT NOT NULL'
+            'l_quantity':      'DECIMAL 10 2 NOT NULL'
+            'l_extendedprice': 'DECIMAL 10 2 NOT NULL'
+            'l_discount':      'DECIMAL 10 2 NOT NULL'
+            'l_tax':           'DECIMAL 10 2 NOT NULL'
+            'l_returnflag':    'CHAR 1 NOT NULL'
+            'l_linestatus':    'CHAR 1 NOT NULL'
+            'l_shipdate':      'DATE NOT NULL'
+            'l_commitdate':    'DATE NOT NULL'
+            'l_receiptdate':   'DATE NOT NULL'
+            'l_shipinstruct':  'CHAR 25 NOT NULL'
+            'l_shipmode':      'CHAR 10 NOT NULL'
+            'l_comment':       'CHAR 44 NOT NULL'
+    'Orders':
+        file: benchmark/tpc-h/data/orders.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            'o_orderkey':      'INT 4 NOT NULL PRIMARY KEY'
+            'o_custkey':       'INT 4 NOT NULL'
+            'o_orderstatus':   'CHAR 1 NOT NULL'
+            'o_totalprice':    'DECIMAL 10 2 NOT NULL'
+            'o_orderdate':     'DATE NOT NULL'
+            'o_orderpriority': 'CHAR 15 NOT NULL'
+            'o_clerk':         'CHAR 15 NOT NULL'
+            'o_shippriority':  'INT 4 NOT NULL'
+            'o_comment':       'CHAR 80 NOT NULL'
+    'Nation':
+        file: benchmark/tpc-h/data/nation.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            'n_nationkey': 'INT 4 NOT NULL PRIMARY KEY'
+            'n_name':      'CHAR 25 NOT NULL'
+            'n_regionkey': 'INT 4 NOT NULL'
+            'n_comment':   'VARCHAR 152 NOT NULL'
+    'Part':
+        file: benchmark/tpc-h/data/part.tbl
+        delimiter: '|'
+        header: 0
+        attributes:
+            'p_partkey':     'INT 4 NOT NULL PRIMARY KEY'
+            'p_name':        'CHAR 55 NOT NULL'
+            'p_mfgr':        'CHAR 25 NOT NULL'
+            'p_brand':       'CHAR 10 NOT NULL'
+            'p_type':        'CHAR 25 NOT NULL'
+            'p_size':        'INT 4 NOT NULL'
+            'p_container':   'CHAR 10 NOT NULL'
+            'p_retailprice': 'DECIMAL 10 2 NOT NULL'
+            'p_comment':     'CHAR 23 NOT NULL'
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/tpch-join_order_q9.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            dummy: >-
+                SELECT n.n_name
+                FROM
+                    Partsupp AS ps,
+                    Supplier AS s,
+                    Lineitem AS l,
+                    Orders AS o,
+                    Nation AS n,
+                    Part AS p
+                WHERE
+                    p_name LIKE "%green" AND
+                    p.p_partkey = l.l_partkey AND
+                    s.s_nationkey = n.n_nationkey AND
+                    l.l_suppkey = ps.ps_suppkey AND
+                    l.l_orderkey = o.o_orderkey AND
+                    l.l_suppkey = s.s_suppkey;

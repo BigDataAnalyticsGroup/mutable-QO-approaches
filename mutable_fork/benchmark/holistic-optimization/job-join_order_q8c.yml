@@ -1,0 +1,167 @@
+description: IMDb benchmark exploiting different join order. JOB Q8c.
+suite: holistic-optimization
+benchmark: job
+name: join order (q8c)
+readonly: true
+data:
+    'name':
+        file: 'benchmark/job/data/name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'name':          'CHAR 100 NOT NULL'
+            'imdb_index':    'CHAR 9'
+            'imdb_id':       'INT'
+            'gender':        'CHAR 1'
+            'name_pcode_cf': 'CHAR 5'
+            'name_pcode_nf': 'CHAR 5'
+            'surname_pcode': 'CHAR 5'
+            'md5sum':        'CHAR 32'
+    'role_type':
+        file: 'benchmark/job/data/role_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'role': 'CHAR 32 NOT NULL'
+    'title':
+        file: 'benchmark/job/data/title.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'title':           'CHAR 100 NOT NULL'
+            'imdb_index':      'CHAR 5'
+            'kind_id':         'INT NOT NULL'
+            'production_year': 'INT'
+            'imdb_id':         'INT'
+            'phonetic_code':   'CHAR 5'
+            'episode_of_id':   'INT'
+            'season_nr':       'INT'
+            'episode_nr':      'INT'
+            'series_years':    'CHAR 49'
+            'md5sum':          'CHAR 32'
+    'aka_name':
+        file: 'benchmark/job/data/aka_name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id': 'INT NOT NULL PRIMARY KEY'
+            'person_id': 'INT NOT NULL'
+            'name': 'CHAR 100'
+            'imdb_index': 'CHAR 3'
+            'name_pcode_cf': 'CHAR 5'
+            'name_pcode_nf': 'CHAR 5'
+            'surname_pcode': 'CHAR 5'
+            'md5sum': 'CHAR 32'
+    'cast_info':
+        file: 'benchmark/job/data/cast_info.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':             'INT NOT NULL PRIMARY KEY'
+            'person_id':      'INT NOT NULL'
+            'movie_id':       'INT NOT NULL'
+            'person_role_id': 'INT'
+            'note':           'CHAR 100'
+            'nr_order':       'INT'
+            'role_id':        'INT NOT NULL'
+    'company_name':
+        file: 'benchmark/job/data/company_name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'name':          'CHAR 100 NOT NULL'
+            'country_code':  'CHAR 6'
+            'imdb_id':       'INT'
+            'name_pcode_nf': 'CHAR 5'
+            'name_pcode_sf': 'CHAR 5'
+            'md5sum':        'CHAR 32'
+    'movie_companies':
+        file: 'benchmark/job/data/movie_companies.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'movie_id':        'INT NOT NULL'
+            'company_id':      'INT NOT NULL'
+            'company_type_id': 'INT NOT NULL'
+            'note':            'CHAR 100'
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/job-join_order_q8c.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (DPccp)':
+                args: --optimizer-topk 2 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'topk (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            dummy: >-
+                SELECT an.name, t.title
+                FROM
+                    name AS n,
+                    cast_info AS ci,
+                    company_name AS cn,
+                    movie_companies AS mc,
+                    role_type AS rt,
+                    aka_name AS an,
+                    title AS t
+                WHERE
+                    cn.country_code = "[us]" AND
+                    rt.role = "writer" AND
+                    n.id = ci.person_id AND
+                    an.person_id = n.id AND
+                    an.person_id = ci.person_id AND
+                    t.id = mc.movie_id AND
+                    ci.role_id = rt.id AND
+                    ci.movie_id = t.id AND
+                    ci.movie_id = mc.movie_id AND
+                    mc.company_id = cn.id;

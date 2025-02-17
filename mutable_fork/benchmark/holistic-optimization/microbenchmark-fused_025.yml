@@ -1,0 +1,90 @@
+description: Microbenchmark exploiting fused operator.
+suite: holistic-optimization
+benchmark: microbenchmark
+name: fused
+readonly: true
+data:
+    'R_fused':
+        file: 'benchmark/holistic-optimization/data/R_fused.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'id':  'INT NOT NULL PRIMARY KEY'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.25:   0.25
+    'T_fused':
+        file: 'benchmark/holistic-optimization/data/T_fused.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'id':  'INT NOT NULL PRIMARY KEY'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.25:   0.25
+    'S_fused':
+        file: 'benchmark/holistic-optimization/data/S_fused.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'rid': 'INT NOT NULL REFERENCES R_fused(id)'
+            'tid': 'INT NOT NULL REFERENCES T_fused(id)'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.25:   0.25
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/microbenchmark-fused_025.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-2 (DPccp)':
+                args: --optimizer-topk 2 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-2 (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            0.25: >-
+                SELECT COUNT(*)
+                FROM R_fused AS R, S_fused AS S, T_fused AS T
+                WHERE R.id = S.rid AND S.tid = T.id
+                GROUP BY R.id;

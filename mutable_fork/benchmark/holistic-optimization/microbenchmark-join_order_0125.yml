@@ -1,0 +1,90 @@
+description: Microbenchmark exploiting different join order.
+suite: holistic-optimization
+benchmark: microbenchmark
+name: join order
+readonly: true
+data:
+    'S_join_order':
+        file: 'benchmark/holistic-optimization/data/S_join_order.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'id':  'INT NOT NULL PRIMARY KEY'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.125:  0.125
+    'R_join_order':
+        file: 'benchmark/holistic-optimization/data/R_join_order.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'id':  'INT NOT NULL PRIMARY KEY'
+            'sid': 'INT NOT NULL REFERENCES S_join_order(id)'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.125:  0.125
+    'T_join_order':
+        file: 'benchmark/holistic-optimization/data/T_join_order.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 1
+        attributes:
+            'id':  'INT NOT NULL PRIMARY KEY'
+            'sid': 'INT NOT NULL REFERENCES S_join_order(id)'
+            'val': 'INT NOT NULL'
+        scale_factors:
+            0.125:  0.125
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/microbenchmark-join_order_0125.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-2 (DPccp)':
+                args: --optimizer-topk 2 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-2 (PEall)':
+                args: --optimizer-topk 2 --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            0.125: >-
+                SELECT 1
+                FROM S_join_order AS S, T_join_order AS T, R_join_order AS R
+                WHERE R.sid = S.id AND S.id = T.sid;

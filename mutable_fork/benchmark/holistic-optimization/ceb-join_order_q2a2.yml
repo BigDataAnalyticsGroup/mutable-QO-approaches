@@ -1,0 +1,273 @@
+description: IMDb benchmark exploiting different join order. CEB Q2a2.
+suite: holistic-optimization
+benchmark: ceb
+name: join order (q2a2)
+readonly: true
+data:
+    'cast_info':
+        file: 'benchmark/job/data/cast_info.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':             'INT NOT NULL PRIMARY KEY'
+            'person_id':      'INT NOT NULL'
+            'movie_id':       'INT NOT NULL'
+            'person_role_id': 'INT'
+            'note':           'CHAR 100'
+            'nr_order':       'INT'
+            'role_id':        'INT NOT NULL'
+        indexes:
+            'id_cast_info':
+                attributes: 'id'
+            'person_id_cast_info':
+                attributes: 'person_id'
+            'movie_id_cast_info':
+                attributes: 'movie_id'
+            'person_role_id_cast_info':
+                attributes: 'person_role_id'
+            'note_cast_info':
+                attributes: 'note'
+            'nr_order_cast_info':
+                attributes: 'nr_order'
+            'role_id_cast_info':
+                attributes: 'role_id'
+    'name':
+        file: 'benchmark/job/data/name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'name':          'CHAR 100 NOT NULL'
+            'imdb_index':    'CHAR 9'
+            'imdb_id':       'INT'
+            'gender':        'CHAR 1'
+            'name_pcode_cf': 'CHAR 5'
+            'name_pcode_nf': 'CHAR 5'
+            'surname_pcode': 'CHAR 5'
+            'md5sum':        'CHAR 32'
+        indexes:
+            'id_name':
+                attributes: 'id'
+            'name_name':
+                attributes: 'name'
+            'imdb_index_name':
+                attributes: 'imdb_index'
+            'imdb_id_name':
+                attributes: 'imdb_id'
+            'gender_name':
+                attributes: 'gender'
+            'name_pcode_cf_name':
+                attributes: 'name_pcode_cf'
+            'name_pcode_nf_name':
+                attributes: 'name_pcode_nf'
+            'surname_pcode_name':
+                attributes: 'surname_pcode'
+            'md5sum_name':
+                attributes: 'md5sum'
+    'title':
+        file: 'benchmark/job/data/title.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':              'INT NOT NULL PRIMARY KEY'
+            'title':           'CHAR 100 NOT NULL'
+            'imdb_index':      'CHAR 5'
+            'kind_id':         'INT NOT NULL'
+            'production_year': 'INT'
+            'imdb_id':         'INT'
+            'phonetic_code':   'CHAR 5'
+            'episode_of_id':   'INT'
+            'season_nr':       'INT'
+            'episode_nr':      'INT'
+            'series_years':    'CHAR 49'
+            'md5sum':          'CHAR 32'
+        indexes:
+            'id_title':
+                attributes: 'id'
+            'title_title':
+                attributes: 'title'
+            'imdb_index_title':
+                attributes: 'imdb_index'
+            'kind_id_title':
+                attributes: 'kind_id'
+            'production_year_title':
+                attributes: 'production_year'
+            'imdb_id_title':
+                attributes: 'imdb_id'
+            'phonetic_code_title':
+                attributes: 'phonetic_code'
+            'episode_of_id_title':
+                attributes: 'episode_of_id'
+            'season_nr_title':
+                attributes: 'season_nr'
+            'episode_nr_title':
+                attributes: 'episode_nr'
+            'series_years_title':
+                attributes: 'series_years'
+            'md5sum_title':
+                attributes: 'md5sum'
+    'role_type':
+        file: 'benchmark/job/data/role_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'role': 'CHAR 32 NOT NULL'
+        indexes:
+            'id_role_type':
+                attributes: 'id'
+            'role_role_type':
+                attributes: 'role'
+    'kind_type':
+        file: 'benchmark/job/data/kind_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'kind': 'CHAR 15'
+        indexes:
+            'id_kind_type':
+                attributes: 'id'
+            'kind_kind_type':
+                attributes: 'kind'
+    'keyword':
+        file: 'benchmark/job/data/keyword.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':            'INT NOT NULL PRIMARY KEY'
+            'keyword':       'CHAR 100 NOT NULL'
+            'phonetic_code': 'CHAR 5'
+        indexes:
+            'id_keyword':
+                attributes: 'id'
+            'keyword_keyword':
+                attributes: 'keyword'
+            'phonetic_code_keyword':
+                attributes: 'phonetic_code'
+    'movie_keyword':
+        file: 'benchmark/job/data/movie_keyword.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':         'INT NOT NULL PRIMARY KEY'
+            'movie_id':   'INT NOT NULL'
+            'keyword_id': 'INT NOT NULL'
+        indexes:
+            'id_movie_keyword':
+                attributes: 'id'
+            'movie_id_movie_keyword':
+                attributes: 'movie_id'
+            'keyword_id_movie_keyword':
+                attributes: 'keyword_id'
+    'info_type':
+        file: 'benchmark/job/data/info_type.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':   'INT NOT NULL PRIMARY KEY'
+            'info': 'CHAR 32 NOT NULL'
+        indexes:
+            'id_info_type':
+                attributes: 'id'
+            'info_info_type':
+                attributes: 'info'
+    'movie_info':
+        file: 'benchmark/job/data/movie_info.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id':           'INT NOT NULL PRIMARY KEY'
+            'movie_id':     'INT NOT NULL'
+            'info_type_id': 'INT NOT NULL'
+            'info':         'CHAR 100 NOT NULL'
+            'note':         'CHAR 100'
+        indexes:
+            'id_movie_info':
+                attributes: 'id'
+            'movie_id_movie_info':
+                attributes: 'movie_id'
+            'info_type_id_movie_info':
+                attributes: 'info_type_id'
+            'info_movie_info':
+                attributes: 'info'
+            'note_movie_info':
+                attributes: 'note'
+systems:
+    mutable:
+        args: >-
+            --backend WasmV8
+            --cardinality-estimator Injected
+            --use-cardinality-file benchmark/holistic-optimization/ceb-join_order_q2a2.json
+        configurations:
+            'split (DPccp)':
+                args: --optimizer-split --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (PEall)':
+                args: --optimizer-split --plan-enumerator PEall
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (DPccp)':
+                args: --optimizer-holistic --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (PEall)':
+                args: --optimizer-holistic --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+                    Machine Code Execution Time: '^Execute machine code:.*'
+        cases:
+            dummy: >-
+                SELECT 1
+                FROM
+                    movie_keyword AS mk,
+                    cast_info AS ci,
+                    movie_info AS mi2,
+                    info_type AS it1,
+                    info_type AS it2,
+                    name AS n,
+                    movie_info AS mi1,
+                    title AS t,
+                    role_type AS rt,
+                    kind_type AS kt,
+                    keyword AS k
+                WHERE
+                    (mi2.info = "Belgium" OR mi2.info = "Canada" OR mi2.info = "Finland" OR mi2.info = "Italy" OR mi2.info = "Portugal" OR mi2.info = "South Korea" OR mi2.info = "Spain" OR mi2.info = "Sweden" OR mi2.info = "UK" OR mi2.info = "USA") AND
+                    it1.id = 3 AND
+                    it2.id = 8 AND
+                    (n.gender = "f" OR ISNULL(n.gender)) AND
+                    (mi1.info = "Animation" OR mi1.info = "Comedy" OR mi1.info = "Documentary" OR mi1.info = "Drama" OR mi1.info = "Family" OR mi1.info = "Short" OR mi1.info = "Sport" OR mi1.info = "Talk-Show") AND
+                    t.production_year <= 2015 AND
+                    t.production_year >= 1990 AND
+                    (rt.role = "costume designer" OR rt.role = "production designer") AND
+                    (kt.kind = "tv movie" OR kt.kind = "tv series" OR kt.kind = "video game") AND
+                    t.id = mi1.movie_id AND
+                    t.id = mi2.movie_id AND
+                    t.kind_id = kt.id AND
+                    mi1.movie_id = mi2.movie_id AND
+                    ci.person_id = n.id AND
+                    k.id = mk.keyword_id AND
+                    t.id = ci.movie_id AND
+                    t.id = mk.movie_id AND
+                    mi1.info_type_id = it1.id AND
+                    mi2.info_type_id = it2.id AND
+                    ci.role_id = rt.id;

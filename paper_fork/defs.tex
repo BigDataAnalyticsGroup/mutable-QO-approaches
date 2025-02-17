@@ -1,0 +1,242 @@
+\newcommand{\ca}[1]{\citeauthor{#1}~\cite{#1}}
+\newcommand{\coderef}[1]{line~\ref{#1}}
+\newcommand{\coderefs}[2]{lines~\ref{#1} and~\ref{#2}}
+\newcommand{\coderefss}[3]{lines~\ref{#1}, \ref{#2}, and~\ref{#3}}
+\newcommand{\coderefsss}[4]{lines~\ref{#1}, \ref{#2}, \ref{#3}, and~\ref{#4}}
+\newcommand{\coderefrange}[2]{lines~\ref{#1}--\ref{#2}}
+
+\definecolor{c_mutable}{RGB}{32, 167, 178}
+\newcommand{\mutable}{\mbox{mu\hspace{-.5pt}\textit{\color{teal-cb}t}\hspace{.5pt}able}\xspace}
+\newcommand{\Wasm}{\textsc{WebAssembly}\xspace}
+\newcommand{\cpp}{\textsc{C++}\xspace}
+\newcommand{\cpptwenty}{\textsc{C++}20\xspace}
+\newcommand{\noun}[1]{\textsc{#1}\xspace}
+
+\newcommand{\Bigo}{\mathcal{O}}
+
+\newcommand{\ie}{i.e.,~}
+\newcommand{\eg}{e.g.,~}
+\renewcommand{\st}{s.t.~}
+\newcommand{\wrt}{w.r.t.~}
+
+\newcommand{\join}{\Bowtie\ }
+\newcommand{\grouping}{$\Gamma$}
+\newcommand{\filter}{$\sigma$}
+\newcommand{\SHJ}[1]{$\text{SHJ}_\text{#1}$}
+\newcommand{\SMJ}[1]{$\text{SMJ}_\text{#1}$}
+\newcommand{\MJ}[1]{$\text{MJ}_\text{#1}$}
+\newcommand{\HBG}[1]{$\text{HBG}_\text{#1}$}
+\newcommand{\HBGJ}[2]{$\text{HBGJ}_\text{#1;#2}$}
+\newcommand{\scan}[1]{\text{Scan(#1)}}
+\newcommand{\ISAM}[2]{\text{ISAM(#1,#2)}}
+
+\renewcommand{\split}{\textsc{split}\xspace}
+\newcommand{\holistic}{\textsc{holistic}\xspace}
+\newcommand{\topk}{\textsc{top-k}\xspace}
+\newcommand{\topkconfig}[1]{\textsc{top-#1}\xspace}
+
+\newcommand{\Cout}{$C_\textit{out}$\xspace}
+\newcommand{\DPccp}{$\textit{DP}_\textit{ccp}$\xspace}
+\newcommand{\PEall}{$\textit{PE}_\textit{all}$\xspace}
+\xspaceremoveexception{-}
+
+\def\captiongap{-3pt}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Autorefs
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\AtBeginDocument{
+    \def\equationautorefname{Equation}
+    \def\figureautorefname{Figure}
+    \def\subfigureautorefname{Figure}
+    \def\defnautorefname{Definition}
+    \def\Itemautorefname{Item}
+    \def\tableautorefname{Table}
+    \def\sectionautorefname{Section}
+    \def\subsectionautorefname{Section}
+    \def\subsubsectionautorefname{Section}
+    \def\chapterautorefname{Chapter}
+    \def\partautorefname{Part}
+    \def\algorithmautorefname{Algorithm}
+    \def\lemmaautorefname{Lemma}
+    \def\theoremautorefname{Definition}
+    \def\definitionautorefname{Definition}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Colors
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% qualitative colors that are color-blind safe, taken from: https://personal.sron.nl/~pault/
+\definecolor{blue-cb}{RGB}{0,119,187}
+\definecolor{cyan-cb}{RGB}{51,187,238}
+\definecolor{teal-cb}{RGB}{0,153,136}
+\definecolor{green-cb}{RGB}{34,136,51}
+\definecolor{yellow-cb}{RGB}{204,187,58}
+\definecolor{orange-cb}{RGB}{238,119,51}
+\definecolor{red-cb}{RGB}{238,102,119}
+\definecolor{magenta-cb}{RGB}{238,51,119}
+\definecolor{purple-cb}{RGB}{170,51,119}
+\definecolor{grey-cb}{RGB}{187,187,187}
+
+\sethlcolor{yellow-cb!40!white}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Listings
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\lstset{
+    autogobble=true,
+    numbers=left,
+    numberstyle=\tiny\color{black!70},
+    numbersep=5pt,
+    xleftmargin=3em,
+    basicstyle=\ttfamily\fontsize{7}{8}\selectfont, %\fontsize{size}{baselineskip} (skip roughly 1.2x size)
+    columns=fixed,
+    keepspaces=true,
+}
+\lstdefinelanguage{sql}{
+    sensitive=false,
+    keywords={select, from, where, as, in, and, distinct, create, drop, materialized, view, group, by, array_agg},
+    keywordstyle=\color{green-cb}, % style of keywords
+    morekeywords=[2]{resultdb},
+    keywordstyle = {[2]\color{red-cb}},
+    morekeywords=[3]{begin, transaction, commit},
+    keywordstyle = {[3]\color{purple-cb}},
+    string=[b]',
+    morestring=[b]",
+    stringstyle=\color{orange-cb},
+    comment=[l]{--},
+    morecomment=[s]{/*}{*/},
+    commentstyle=\color{blue-cb},
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Algorithms
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newfloat{algfloat}{htbp}{lop}
+\floatname{algfloat}{Algorithm}
+\captionsetup[algfloat]{labelsep=colon}
+\def\algfloatautorefname{Algorithm}
+\algrenewcommand{\algorithmiccomment}[1]{\hfill\textcolor{blue-cb!90!black}{$\triangleright$ \textit{#1}}}
+\algnewcommand{\CommentLeft}[1]{\textcolor{blue-cb!90!black}{$\triangleright$ \textit{#1}}}
+\algnewcommand{\Assert}[1]{\textbf{assert} #1}
+\algnewcommand{\Continue}{\textbf{continue}}
+\AtBeginEnvironment{algorithmic}{\fontsize{7}{8}\selectfont}
+
+\makeatletter
+% code borrowed from Andrew Stacey; See
+% https://tex.stackexchange.com/a/50054/3954
+\tikzset{%
+  remember picture with id/.style={%
+    remember picture,
+    overlay,
+    save picture id=#1,
+  },
+  save picture id/.code={%
+    \edef\pgf@temp{#1}%
+    \immediate\write\pgfutil@auxout{%
+      \noexpand\savepointas{\pgf@temp}{\pgfpictureid}}%
+  },
+  if picture id/.code args={#1#2#3}{%
+    \@ifundefined{save@pt@#1}{%
+      \pgfkeysalso{#3}%
+    }{
+      \pgfkeysalso{#2}%
+    }
+  }
+}
+
+\def\savepointas#1#2{%
+  \expandafter\gdef\csname save@pt@#1\endcsname{#2}%
+}
+
+\def\tmk@labeldef#1,#2\@nil{%
+  \def\tmk@label{#1}%
+  \def\tmk@def{#2}%
+}
+
+\tikzdeclarecoordinatesystem{pic}{%
+  \pgfutil@in@,{#1}%
+  \ifpgfutil@in@%
+    \tmk@labeldef#1\@nil
+  \else
+    \tmk@labeldef#1,(0pt,0pt)\@nil
+  \fi
+  \@ifundefined{save@pt@\tmk@label}{%
+    \tikz@scan@one@point\pgfutil@firstofone\tmk@def
+  }{%
+  \pgfsys@getposition{\csname save@pt@\tmk@label\endcsname}\save@orig@pic%
+  \pgfsys@getposition{\pgfpictureid}\save@this@pic%
+  \pgf@process{\pgfpointorigin\save@this@pic}%
+  \pgf@xa=\pgf@x
+  \pgf@ya=\pgf@y
+  \pgf@process{\pgfpointorigin\save@orig@pic}%
+  \advance\pgf@x by -\pgf@xa
+  \advance\pgf@y by -\pgf@ya
+  }%
+}
+% end of Andrew's code
+
+% main command to draw the colored background
+\newlength\AlgIndent
+\setlength\AlgIndent{2.5pt}
+\newcounter{mymark}
+\newcommand{\ColorLine}[1]{%
+  \stepcounter{mymark}%
+  \tikz[remember picture with id=mark-\themymark,overlay] {;}%
+  \begin{tikzpicture}[remember picture,overlay]%
+    \filldraw[#1]%
+   let \p1=(pic cs:mark-\themymark),
+   \p2=(current page.east)  in
+   ([xshift=-\ALG@thistlm-0.3em,yshift=-0.7ex]0,\y1)  rectangle ++(\linewidth+\AlgIndent,\baselineskip);
+  \end{tikzpicture}%
+}%
+\algnewcommand{\CState}[1]{\State\ColorLine{#1}}%
+\algdef{SE}[IF]{CIf}{ENDIF}%
+   [3][default]{\ColorLine{#2}\algorithmicif\ #3\ \algorithmicthen\ALG@compatcomm{#1}}%
+   {\algorithmicend\ \algorithmicif}%
+\algdef{SE}[FOR]{CFor}{ENDFOR}%
+   [3][default]{\ColorLine{#2}\algorithmicfor\ #3\ \algorithmicdo\ALG@compatcomm{#1}}%
+   {\algorithmicend\ \algorithmicfor}%
+\algdef{S}[FOR]{CForAll}%
+   [3][default]{\ColorLine{#2}\algorithmicforall\ #3\ \algorithmicdo\ALG@compatcomm{#1}}%
+\makeatother
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Tables
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\floatstyle{plaintop}
+\restylefloat{table}
+
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}} % column type for tabulars with horizontal centering
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Tikz
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pgfdeclarelayer{bg}
+\pgfsetlayers{bg,main}
+
+\tikzset{
+	halo/.style={line join=round, double, line cap=round, double distance=#1, shorten >=-#1/4, shorten <=-#1/4},
+    halo/.default=.8cm
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fonts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\makeatletter
+    \newcommand{\showfont}{
+        \begin{itemize}
+            \item encoding: \f@encoding{}
+            \item family: \f@family{}
+            \item series: \f@series{}
+            \item shape: \f@shape{}
+            \item size: \f@size{}
+        \end{itemize}
+    }
+\makeatother

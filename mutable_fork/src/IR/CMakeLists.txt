@@ -1,0 +1,19 @@
+add_library(
+    IR
+    OBJECT
+    CNF.cpp
+    Condition.cpp
+    HeuristicSearchPlanEnumerator.cpp
+    HolisticOptimizer.cpp
+    HolisticPlanTable.cpp
+    Operator.cpp
+    Optimizer.cpp
+    PartialPlanGenerator.cpp
+    PhysicalOptimizer.cpp
+    PlanEnumerator.cpp
+    PlanTable.cpp
+    QueryGraph.cpp
+    QueryGraph2SQL.cpp
+    TopKOptimizer.cpp
+    Tuple.cpp
+)

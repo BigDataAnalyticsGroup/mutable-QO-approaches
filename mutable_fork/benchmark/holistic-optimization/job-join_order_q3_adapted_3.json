@@ -1,0 +1,16 @@
+{
+    "holistic_optimization": [
+        { "relations": ["mi"], "size": 94 },
+        { "relations": ["t"], "size": 904491 },
+        { "relations": ["mk"], "size": 4523930 },
+        { "relations": ["k"], "size": 116 },
+        { "relations": ["mi", "t"], "size": 25 },
+        { "relations": ["t", "mk"], "size": 1069450 },
+        { "relations": ["mk", "k"], "size": 3532 },
+        { "relations": ["mi", "t", "mk"], "size": 273 },
+        { "relations": ["t", "mk", "k"], "size": 643 },
+        { "relations": ["mi", "t", "mk", "k"], "size": 0 },
+        { "relations": ["mi", "mk"], "size": 3283 },
+        { "relations": ["mi", "mk", "k"], "size": 0 }
+    ]
+}
