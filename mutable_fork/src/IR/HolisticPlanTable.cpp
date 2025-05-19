@@ -65,7 +65,7 @@ void HolisticPlanTable<PlanTable>::update(const QueryGraph &G, const Cardinality
     /* Construct join. Use internal join operator type to share children between entries. */
     auto join = std::make_unique<join_t>(std::move(condition));
     M_insist(is<Producer>(&logical_plan(entry_left)));
-    M_insist(is<Producer>(&logical_plan(entry_left)));
+    M_insist(is<Producer>(&logical_plan(entry_right)));
     join->add_child(cast<Producer>(&logical_plan(entry_left))); // reuse left child
     join->add_child(cast<Producer>(&logical_plan(entry_right))); // reuse right child
     join->assign_post_order_ids();
@@ -79,7 +79,13 @@ void HolisticPlanTable<PlanTable>::update(const QueryGraph &G, const Cardinality
     /* Physically optimize join which inserts entries into this plan table. */
     register_logical_plan(entry, left, right, *join); // register join in current entry to correctly compute `idx2subproblem()`
     M_insist(bool(phys_opt_), "physical optimizer must be registered");
-    (*phys_opt_)(*join);
+    try {
+        (*phys_opt_)(*join);
+    } catch (no_match_found&) {
+        M_insist(bool(created_log_plans_), "logical plan storage must be registered");
+        created_log_plans_->get().push_back(std::move(join)); // store to prevent dangling pointer
+        throw no_match_found{}; // rethrow exception
+    };
 
     M_insist(bool(created_log_plans_), "logical plan storage must be registered");
     created_log_plans_->get().push_back(std::move(join)); // store to prevent dangling pointer

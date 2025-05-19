@@ -388,8 +388,173 @@ series = {VLDB '04}
   urldate = {2025-01-09}
 }
 
+@article{job_paper,
+  author       = {Viktor Leis and
+                  Andrey Gubichev and
+                  Atanas Mirchev and
+                  Peter A. Boncz and
+                  Alfons Kemper and
+                  Thomas Neumann},
+  title        = {How Good Are Query Optimizers, Really?},
+  journal      = {Proc. {VLDB} Endow.},
+  volume       = {9},
+  number       = {3},
+  pages        = {204--215},
+  year         = {2015},
+  url          = {http://www.vldb.org/pvldb/vol9/p204-leis.pdf},
+  doi          = {10.14778/2850583.2850594},
+  timestamp    = {Sat, 25 Apr 2020 13:59:04 +0200},
+  biburl       = {https://dblp.org/rec/journals/pvldb/LeisGMBK015.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
 @online{ceb,
   title={\normalfont CEB GitHub},
   url={https://github.com/learnedsystems/CEB},
   urldate = {2025-01-09}
+}
+
+@article{ceb_paper,
+  author       = {Parimarjan Negi and
+                  Ryan Marcus and
+                  Andreas Kipf and
+                  Hongzi Mao and
+                  Nesime Tatbul and
+                  Tim Kraska and
+                  Mohammad Alizadeh},
+  title        = {Flow-Loss: Learning Cardinality Estimates That Matter},
+  journal      = {Proc. {VLDB} Endow.},
+  volume       = {14},
+  number       = {11},
+  pages        = {2019--2032},
+  year         = {2021},
+  url          = {http://www.vldb.org/pvldb/vol14/p2019-negi.pdf},
+  doi          = {10.14778/3476249.3476259},
+  timestamp    = {Wed, 02 Aug 2023 10:05:17 +0200},
+  biburl       = {https://dblp.org/rec/journals/pvldb/NegiMKMTKA21.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{top_down_pruning,
+  author       = {David DeHaan and
+                  Frank Wm. Tompa},
+  editor       = {Chee Yong Chan and
+                  Beng Chin Ooi and
+                  Aoying Zhou},
+  title        = {Optimal top-down join enumeration},
+  booktitle    = {Proceedings of the {ACM} {SIGMOD} International Conference on Management
+                  of Data, Beijing, China, June 12-14, 2007},
+  pages        = {785--796},
+  publisher    = {{ACM}},
+  year         = {2007},
+  url          = {https://doi.org/10.1145/1247480.1247567},
+  doi          = {10.1145/1247480.1247567},
+  timestamp    = {Thu, 14 Oct 2021 10:11:36 +0200},
+  biburl       = {https://dblp.org/rec/conf/sigmod/DeHaanT07.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@phdthesis{td_basic_name,
+  author       = {Pit Fender},
+  title        = {Algorithms for Efficient Top-Down Join Enumeration},
+  school       = {University of Mannheim},
+  year         = {2014},
+  url          = {https://ub-madoc.bib.uni-mannheim.de/36655},
+  urn          = {urn:nbn:de:bsz:180-madoc-366553},
+  timestamp    = {Sat, 17 Jul 2021 09:02:13 +0200},
+  biburl       = {https://dblp.org/rec/phd/dnb/Fender14.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{td_basic_idea,
+  author       = {Pit Fender and
+                  Guido Moerkotte},
+  editor       = {Serge Abiteboul and
+                  Klemens B{\"{o}}hm and
+                  Christoph Koch and
+                  Kian{-}Lee Tan},
+  title        = {A new, highly efficient, and easy to implement top-down join enumeration
+                  algorithm},
+  booktitle    = {Proceedings of the 27th International Conference on Data Engineering,
+                  {ICDE} 2011, April 11-16, 2011, Hannover, Germany},
+  pages        = {864--875},
+  publisher    = {{IEEE} Computer Society},
+  year         = {2011},
+  url          = {https://doi.org/10.1109/ICDE.2011.5767901},
+  doi          = {10.1109/ICDE.2011.5767901},
+  timestamp    = {Thu, 23 Mar 2023 23:59:58 +0100},
+  biburl       = {https://dblp.org/rec/conf/icde/FenderM11.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{goo,
+  author       = {Leonidas Fegaras},
+  editor       = {Gerald Quirchmayr and
+                  Erich Schweighofer and
+                  Trevor J. M. Bench{-}Capon},
+  title        = {A New Heuristic for Optimizing Large Queries},
+  booktitle    = {Database and Expert Systems Applications, 9th International Conference,
+                  {DEXA} '98, Vienna, Austria, August 24-28, 1998, Proceedings},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {1460},
+  pages        = {726--735},
+  publisher    = {Springer},
+  year         = {1998},
+  url          = {https://doi.org/10.1007/BFb0054528},
+  doi          = {10.1007/BFB0054528},
+  timestamp    = {Tue, 14 May 2019 10:00:46 +0200},
+  biburl       = {https://dblp.org/rec/conf/dexa/Fegaras98.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{push_vs_pull,
+  author       = {Amir Shaikhha and
+                  Mohammad Dashti and
+                  Christoph Koch},
+  title        = {Push vs. Pull-Based Loop Fusion in Query Engines},
+  journal      = {CoRR},
+  volume       = {abs/1610.09166},
+  year         = {2016},
+  url          = {http://arxiv.org/abs/1610.09166},
+  eprinttype    = {arXiv},
+  eprint       = {1610.09166},
+  timestamp    = {Mon, 12 Oct 2020 18:35:11 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/ShaikhhaD016.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{worst_case_optimal_joins,
+  author       = {Hung Q. Ngo and
+                  Ely Porat and
+                  Christopher R{\'{e}} and
+                  Atri Rudra},
+  title        = {Worst-case Optimal Join Algorithms},
+  journal      = {CoRR},
+  volume       = {abs/1203.1952},
+  year         = {2012},
+  url          = {http://arxiv.org/abs/1203.1952},
+  eprinttype    = {arXiv},
+  eprint       = {1203.1952},
+  timestamp    = {Mon, 13 Aug 2018 16:48:34 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1203-1952.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{bao,
+  author       = {Ryan Marcus and
+                  Parimarjan Negi and
+                  Hongzi Mao and
+                  Nesime Tatbul and
+                  Mohammad Alizadeh and
+                  Tim Kraska},
+  title        = {Bao: Learning to Steer Query Optimizers},
+  journal      = {CoRR},
+  volume       = {abs/2004.03814},
+  year         = {2020},
+  url          = {https://arxiv.org/abs/2004.03814},
+  eprinttype    = {arXiv},
+  eprint       = {2004.03814},
+  timestamp    = {Tue, 14 Apr 2020 16:40:34 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2004-03814.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }

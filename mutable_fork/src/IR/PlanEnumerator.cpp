@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutable/catalog/Catalog.hpp>
 #include <mutable/catalog/CostFunction.hpp>
+#include <mutable/IR/PhysicalOptimizer.hpp>
 #include <mutable/util/ADT.hpp>
 #include <mutable/util/fn.hpp>
 #include <mutable/util/list_allocator.hpp>
@@ -50,8 +51,7 @@ struct PEall final : PlanEnumeratorCRTP<PEall>
             Subproblem limit = Subproblem::Singleton(offset - 1);
             for (Subproblem S1(least_subset(S)); S1 != limit; S1 = Subproblem(next_subset(S1, S))) {
                 Subproblem S2 = S - S1; // = S \ S1;
-                M_insist(PT.has_plan(S1), "must have found the optimal plan for S1");
-                M_insist(PT.has_plan(S2), "must have found the optimal plan for S2");
+                if (not PT.has_plan(S1) or not PT.has_plan(S2)) continue; // subproblems not found (due to pruning) -> skip
                 /* Exploit commutativity of join. */
                 cnf::CNF condition; // TODO use join condition
                 PT.update(G, CE, CF, S1, S2, condition);
@@ -599,9 +599,22 @@ struct TDbasic final : PlanEnumeratorCRTP<TDbasic>
     using base_type = PlanEnumeratorCRTP<TDbasic>;
     using base_type::operator();
 
+    private:
+    ///> maps pruned subsets to budgets under which they were pruned
+    mutable std::unordered_map<Subproblem, double, SubproblemHash> pruned_subsets_;
+
+    /** Helper to check whether subproblem \p S was already pruned with at least the current budget. */
     template<typename PlanTable>
-    void PlanGen(const QueryGraph &G, const AdjacencyMatrix &M, const CostFunction &CF, const CardinalityEstimator &CE,
-                 PlanTable &PT, Subproblem S) const
+    requires is_specialization<PlanTable, HolisticPlanTable>
+    bool check_pruned(const Subproblem &S, const PlanTable &PT) const {
+        auto it = pruned_subsets_.find(S);
+        return it != pruned_subsets_.end() and PT.phys_opt_->get().get_cost_based_pruning_bound() <= it->second;
+    }
+
+    public:
+    template<typename PlanTable>
+    double PlanGen(const QueryGraph &G, const AdjacencyMatrix &M, const CostFunction &CF, const CardinalityEstimator &CE,
+                   PlanTable &PT, Subproblem S) const
     {
         if (not PT.has_plan(S)) {
             /* Naive Partitioning */
@@ -613,15 +626,55 @@ struct TDbasic final : PlanEnumeratorCRTP<TDbasic>
                     M.is_connected(sub) and M.is_connected(complement))
                 {
                     /* Process `sub` and `complement` recursively. */
-                    PlanGen(G, M, CF, CE, PT, sub);
-                    PlanGen(G, M, CF, CE, PT, complement);
+                    if (Options::Get().enable_branch_and_bound_pruning) {
+                        if constexpr (is_specialization<PlanTable, HolisticPlanTable>) {
+                            if (check_pruned(sub, PT))
+                                continue;
+                            const auto cost_sub = PlanGen(G, M, CF, CE, PT, sub);
+                            if (cost_sub == std::numeric_limits<double>::infinity()) { // no match found
+                                pruned_subsets_.emplace(sub, PT.phys_opt_->get().get_cost_based_pruning_bound());
+                                continue; // no match found means subsets are already too costly -> prune
+                            }
+                            M_insist(bool(PT.phys_opt_), "physical optimizer must be registered");
+                            const auto old = PT.phys_opt_->get().get_cost_based_pruning_bound();
+                            PT.phys_opt_->get().reinitialize_cost_based_pruning(
+                                PT.phys_opt_->get().get_cost_based_pruning_bound() - cost_sub
+                            ); // reduce budget by cost for `sub`
+                            if (check_pruned(complement, PT)) {
+                                PT.phys_opt_->get().reinitialize_cost_based_pruning(old); // restore former cost
+                                continue;
+                            }
+                            const auto cost_complement = PlanGen(G, M, CF, CE, PT, complement);
+                            if (cost_complement == std::numeric_limits<double>::infinity()) { // no match found
+                                pruned_subsets_.emplace(complement, PT.phys_opt_->get().get_cost_based_pruning_bound());
+                                PT.phys_opt_->get().reinitialize_cost_based_pruning(old); // restore former cost
+                                continue; // no match found means subsets are already too costly -> prune
+                            }
+                            PT.phys_opt_->get().reinitialize_cost_based_pruning(old); // restore former cost
 
-                    /* Update `PlanTable`. */
-                    cnf::CNF condition; // TODO use join condition
-                    PT.update(G, CE, CF, sub, complement, condition);
+                            try {
+                                /* Update `PlanTable`. */
+                                cnf::CNF condition; // TODO use join condition
+                                PT.update(G, CE, CF, sub, complement, condition);
+                            } catch (no_match_found&) {
+                                continue; // no match found means subsets are already too costly -> prune
+                            }
+                        } else {
+                            goto fallback;
+                        }
+                    } else {
+fallback:
+                        PlanGen(G, M, CF, CE, PT, sub);
+                        PlanGen(G, M, CF, CE, PT, complement);
+
+                        /* Update `PlanTable`. */
+                        cnf::CNF condition; // TODO use join condition
+                        PT.update(G, CE, CF, sub, complement, condition);
+                    }
                 }
             }
         }
+        return PT.c(S);
     }
 
     template<typename PlanTable>

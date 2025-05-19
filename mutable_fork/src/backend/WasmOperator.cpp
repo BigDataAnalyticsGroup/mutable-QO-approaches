@@ -973,6 +973,21 @@ decompose_equi_predicate(const cnf::CNF &cnf, const Schema &schema_left)
     return { std::move(ids_left), std::move(ids_right) };
 }
 
+/** Returns all identifiers contained in a predicate. */
+std::unordered_set<Schema::Identifier> get_identifiers(const cnf::CNF &cnf)
+{
+    std::unordered_set<Schema::Identifier> ids;
+    for (auto &clause : cnf) {
+        for (auto &literal : clause) {
+            visit(overloaded {
+                [](auto&) { },
+                [&ids](const Designator &d){ ids.emplace(d); },
+            }, literal.expr(), m::tag<ast::ConstPreOrderExprVisitor>());
+        }
+    }
+    return ids;
+}
+
 /** Returns the number of rows of table \p table_name. */
 U64x1 get_num_rows(const ThreadSafePooledString &table_name) {
     static std::ostringstream oss;
@@ -1831,6 +1846,7 @@ template<idx::IndexMethod IndexMethod, typename Index, sql_type SqlT>
 void index_scan_codegen_compilation(const Index &index, const index_scan_bounds_t &bounds,
                                     const Match<IndexScan<IndexMethod>> &M,
                                     setup_t setup, pipeline_t pipeline, teardown_t teardown) {
+    using key_type = Index::key_type;
     using sql_type = SqlT;
 
     if (options::index_scan_compilation_strategy == option_configs::IndexScanCompilationStrategy::CALLBACK) {
@@ -1877,11 +1893,62 @@ void index_scan_codegen_compilation(const Index &index, const index_scan_bounds_
 
         /*----- Emit host calls to query the index for lo and hi bounds. -----*/
         auto compile_bound_lookup = [&](const ast::Expr &bound, bool is_lower_bound) {
-            auto key = CodeGenContext::Get().env().compile(bound);
+            auto [constant, is_negative] = get_valid_bound(bound);
+            auto c = Interpreter::eval(constant);
+            key_type _key;
+            if constexpr(m::boolean<key_type>) {
+                _key = bool(c);
+                M_insist(not is_negative, "boolean cannot be negative");
+            } else if constexpr(m::integral<key_type>) {
+                auto i64 = int64_t(c);
+                M_insist(std::in_range<key_type>(i64), "integeral constant must be in range");
+                _key = key_type(i64);
+                _key = is_negative ? -_key : _key;
+            } else if constexpr(std::same_as<float, key_type>) {
+                auto d = double(c);
+                _key = key_type(d);
+                M_insist(_key == d, "downcasting should not impact precision");
+                _key = is_negative ? -_key : _key;
+            } else if constexpr(std::same_as<double, key_type>) {
+                _key = double(c);
+                _key = is_negative ? -_key : _key;
+            } else if constexpr(std::same_as<const char*, key_type>) {
+                _key = reinterpret_cast<const char*>(c.as_p());
+                M_insist(not is_negative, "string cannot be negative");
+            }
+
+            std::optional<typename sql_type::primitive_type> key;
+            if (options::index_scan_materialization_strategy == option_configs::IndexScanMaterializationStrategy::INLINE) {
+                if constexpr (std::same_as<sql_type, NChar>) {
+                    key.emplace(CodeGenContext::Get().get_literal_address(_key));
+                } else {
+                    key.emplace(_key);
+                }
+            } else if (options::index_scan_materialization_strategy == option_configs::IndexScanMaterializationStrategy::MEMORY) {
+                /* If we materialize before calling the bound functions, the key parameter is independent of the bounds.
+                 * As a result, queries that only differ in the filter predicate are compiled to the exact same
+                 * WebAssembly code, enabling caching of compiled plans in V8. */
+                if constexpr (std::same_as<sql_type, NChar>) {
+                    uint64_t *key_address = Module::Allocator().raw_malloc<uint64_t>();
+                    *key_address = CodeGenContext::Get().get_literal_raw_address(_key);
+
+                    Ptr<U64x1> key_ptr(key_address);
+                    key.emplace(U64x1(*key_ptr).to<char*>(), false, as<const CharacterSequence>(bound.type()));
+                } else {
+                    auto *key_address = Module::Allocator().raw_malloc<typename sql_type::type>();
+                    *key_address = _key;
+
+                    Ptr<typename sql_type::primitive_type> key_ptr(key_address);
+                    key.emplace(*key_ptr);
+                }
+            } else {
+                M_unreachable("unknown materialization strategy");
+            }
+            M_insist(bool(key), "key must be set");
             return Module::Get().emit_call<uint64_t>(
                 /* fn=       */ is_lower_bound ? lower_bound_fn : upper_bound_fn,
                 /* index_id= */ index_id.clone(),
-                /* key=      */ convert<sql_type>(key).insist_not_null()
+                /* key=      */ *key
             );
         };
         Var<U64x1> lo(bool(bounds.lo) ? compile_bound_lookup(bounds.lo->get(), bounds.is_inclusive_lo)
@@ -1998,10 +2065,12 @@ void index_scan_codegen_interpretation(const Index &index, const index_scan_boun
     if (options::index_scan_materialization_strategy == option_configs::IndexScanMaterializationStrategy::MEMORY) {
         /*----- Allocate sufficient memory for results. -----*/
         uint64_t num_results = hi - lo;
-        uint64_t *buffer_address = Module::Allocator().raw_malloc<uint64_t>(num_results);
+        uint64_t *buffer_address = Module::Allocator().raw_malloc<uint64_t>(num_results + 1); // +1 for storing number of results itself
 
-        /*----- Perform index scan and fill memory with results. -----*/
+        /*----- Perform index scan and fill memory with number of results and results. -----*/
         uint64_t *buffer_ptr = buffer_address;
+        *buffer_ptr = num_results; // store in memory to enable caching
+        ++buffer_ptr;
         for (auto it = index.begin() + lo; it != index.begin() + hi; ++it) {
             M_insist(std::in_range<uint64_t>(it->second), "tuple id must fit in uint64_t");
             *buffer_ptr = it->second;
@@ -2012,8 +2081,9 @@ void index_scan_codegen_interpretation(const Index &index, const index_scan_boun
         setup();
 
         /*----- Emit loop code. -----*/
-        Var<Ptr<U64x1>> ptr(buffer_address);
-        Ptr<U64x1> end(buffer_address + num_results);
+        Ptr<U64x1> base(buffer_address + 1); // +1 to skip stored number of results
+        Var<Ptr<U64x1>> ptr(base.clone());
+        const Var<Ptr<U64x1>> end(base + U64x1(*Ptr<U64x1>(buffer_address)).make_signed());
         WHILE(ptr < end) {
             compile_load_point_access(
                 /* tuple_value_schema=   */ M.scan.schema(),
@@ -4954,7 +5024,7 @@ ConditionSet NestedLoopsJoin<Predicated>::pre_condition(std::size_t, const std::
 
 template<bool Predicated>
 ConditionSet NestedLoopsJoin<Predicated>::adapt_post_conditions(
-    const Match<NestedLoopsJoin>&,
+    const Match<NestedLoopsJoin> &M,
     std::vector<std::reference_wrapper<const ConditionSet>> &&post_cond_children)
 {
     M_insist(post_cond_children.size() >= 2);
@@ -4965,6 +5035,10 @@ ConditionSet NestedLoopsJoin<Predicated>::adapt_post_conditions(
         /*----- Predicated nested-loops join introduces predication. -----*/
         post_cond.add_or_replace_condition(m::Predicated(true));
     }
+
+    /*----- Simple hash join joins all identifiers contained in the join predicate. -----*/
+    const auto join_keys = get_identifiers(M.join.predicate());
+    post_cond.add_or_replace_condition(m::Joined(std::move(join_keys)));
 
     return post_cond;
 }
@@ -5102,7 +5176,7 @@ ConditionSet SimpleHashJoin<UniqueBuild, Predicated>::pre_condition(
 
 template<bool UniqueBuild, bool Predicated>
 ConditionSet SimpleHashJoin<UniqueBuild, Predicated>::adapt_post_conditions(
-    const Match<SimpleHashJoin>&,
+    const Match<SimpleHashJoin> &M,
     std::vector<std::reference_wrapper<const ConditionSet>> &&post_cond_children)
 {
     M_insist(post_cond_children.size() == 2);
@@ -5116,6 +5190,10 @@ ConditionSet SimpleHashJoin<UniqueBuild, Predicated>::adapt_post_conditions(
         /*----- Branching simple hash join does not introduce predication (it is already handled by the hash table). -*/
         post_cond.add_or_replace_condition(m::Predicated(false));
     }
+
+    /*----- Simple hash join joins all identifiers contained in the join predicate. -----*/
+    const auto join_keys = get_identifiers(M.join.predicate());
+    post_cond.add_or_replace_condition(m::Joined(std::move(join_keys)));
 
     return post_cond;
 }
@@ -5412,6 +5490,10 @@ ConditionSet SortMergeJoin<SortLeft, SortRight, Predicated, CmpPredicated>::adap
     }
     post_cond.add_condition(Sortedness(std::move(orders)));
 
+    /*----- Sort merge join joins all identifiers contained in the join predicate. -----*/
+    const auto join_keys = get_identifiers(M.join.predicate());
+    post_cond.add_or_replace_condition(m::Joined(std::move(join_keys)));
+
     return post_cond;
 }
 
@@ -5507,30 +5589,6 @@ void SortMergeJoin<SortLeft, SortRight, Predicated, CmpPredicated>::execute(
     if constexpr (SortRight)
         quicksort<CmpPredicated>(*buffer_child, order_child);
 
-    /*----- Create predicate to check if child co-group is smaller or equal than the one of the parent relation. -----*/
-    auto child_smaller_equal = [&]() -> Boolx1 {
-        std::optional<Boolx1> child_smaller_equal_;
-        for (std::size_t i = 0; i < order_child.size(); ++i) {
-            auto &des_parent = as<const Designator>(order_parent[i].first);
-            auto &des_child  = as<const Designator>(order_child[i].first);
-            Token leq = Token::CreateArtificial(TK_LESS_EQUAL);
-            auto cpy_parent = std::make_unique<Designator>(des_parent.tok, des_parent.table_name, des_parent.attr_name,
-                                                           des_parent.type(), des_parent.target());
-            auto cpy_child  = std::make_unique<Designator>(des_child.tok, des_child.table_name, des_child.attr_name,
-                                                           des_child.type(), des_child.target());
-            BinaryExpr expr(std::move(leq), std::move(cpy_child), std::move(cpy_parent));
-
-            auto child = env.get(Schema::Identifier(des_child));
-            Boolx1 cmp = env.compile<_Boolx1>(expr).is_true_and_not_null();
-            if (child_smaller_equal_)
-                child_smaller_equal_.emplace(*child_smaller_equal_ and (is_null(child) or cmp));
-            else
-                child_smaller_equal_.emplace(is_null(child) or cmp);
-        }
-        M_insist(bool(child_smaller_equal_));
-        return *child_smaller_equal_;
-    };
-
     /*----- Compile data layouts to generate sequential loads from buffers. -----*/
     static Schema empty_schema;
     Var<U64x1> tuple_id_parent, tuple_id_child; // default initialized to 0
@@ -5559,6 +5617,30 @@ void SortMergeJoin<SortLeft, SortRight, Predicated, CmpPredicated>::execute(
     /* since structured bindings cannot be used in lambda capture */
     Block jumps_parent(std::move(_jumps_parent)), jumps_child(std::move(_jumps_child));
 
+    /*----- Create predicate to check if child co-group is smaller or equal than the one of the parent relation. -----*/
+    Boolx1 child_smaller_equal = [&](){
+        std::optional<Boolx1> child_smaller_equal_;
+        for (std::size_t i = 0; i < order_child.size(); ++i) {
+            auto &des_parent = as<const Designator>(order_parent[i].first);
+            auto &des_child  = as<const Designator>(order_child[i].first);
+            Token leq = Token::CreateArtificial(TK_LESS_EQUAL);
+            auto cpy_parent = std::make_unique<Designator>(des_parent.tok, des_parent.table_name, des_parent.attr_name,
+                                                           des_parent.type(), des_parent.target());
+            auto cpy_child  = std::make_unique<Designator>(des_child.tok, des_child.table_name, des_child.attr_name,
+                                                           des_child.type(), des_child.target());
+            BinaryExpr expr(std::move(leq), std::move(cpy_child), std::move(cpy_parent));
+
+            auto child = env.get(Schema::Identifier(des_child));
+            Boolx1 cmp = env.compile<_Boolx1>(expr).is_true_and_not_null();
+            if (child_smaller_equal_)
+                child_smaller_equal_.emplace(*child_smaller_equal_ and (is_null(child) or cmp));
+            else
+                child_smaller_equal_.emplace(is_null(child) or cmp);
+        }
+        M_insist(bool(child_smaller_equal_));
+        return *child_smaller_equal_;
+    }();
+
     /*----- Process both buffers together. -----*/
     setup();
     inits_parent.attach_to_current();
@@ -5579,7 +5661,7 @@ void SortMergeJoin<SortLeft, SortRight, Predicated, CmpPredicated>::execute(
                 pipeline();
             };
         }
-        IF (child_smaller_equal()) {
+        IF (child_smaller_equal) {
             jumps_child.attach_to_current();
         } ELSE {
             jumps_parent.attach_to_current();

@@ -1,366 +1,382 @@
 \section{Algorithms}
 \label{sec:impl}
 
-In this section, we revisit and contrast  \split and \holistic based on detailed pseudocode.  \autoref{alg:split} and \autoref{alg:holistic} depict this pseudocode as side-by-side comparison and highlight lines that perform physical optimization in brown.  Additionally, a helper function to choose physical operator for a given algebraic plan is defined in \autoref{alg:physical}.  To explain the pseudocode, we revisit the running example in \autoref{fig:example} and optimize it step by step.
+In this section, we revisit and contrast  \split and \holistic based on detailed pseudocode.  \autoref{alg:split} and \autoref{alg:holistic} depict this pseudocode as side-by-side comparison and highlight lines that perform physical optimization in brown.  Additionally, a helper function to choose physical \revisionrewrite{operators} for a given algebraic plan is defined in \autoref{alg:physical}.  To explain the pseudocode, we revisit the running example in \autoref{fig:example} and optimize it step by step.
 
 Afterward, we explain how to extend our physical optimization implementation to support fused physical operators, \ie physical operators that implement the logic of multiple algebraic operators, like the hash-based group-join.  Additionally, we propose a hybrid approach called \topk.
 
 \subsection{\split}
 \label{sec:impl-split}
 
-The core idea of \split is to first transform a given query graph into an algebraic plan before physically optimizing this single algebraic plan afterwards.  In \autoref{alg:split}, these individual steps are clearly separated in the main function \textproc{split} (\coderefrange{split-main_begin}{split-main_end}).  To accelerate the optimization time, we apply dynamic programming and store already solved intermediate results in a dynamic programming table called the plan table.
+The core idea of \split is to first transform a given query graph into an algebraic plan before physically optimizing this single algebraic plan afterwards.  In \autoref{alg:split}, these individual steps are clearly separated in the main function \textproc{split} (\coderefrange{split-main_begin}{split-main_end}).  To accelerate the optimization time, we apply dynamic programming and store already solved intermediate results in a \revisionremove{dynamic programming table called the }plan table.
 
 \textbf{Algebraic Optimization.}
 In \coderef{split-plan_table_alg}, the algebraic optimization step allocates a fresh plan table.  This plan table maps a subproblem, \ie a subset of all base relations determining which base relations are already joined, to an algebraic plan for that subproblem together with its estimated algebraic cost.   Note that the cost column represents a cumulative cost consisting of the recursive costs of the children and the cost of the subproblem itself.
 
-Firstly, \coderefrange{split-base_begin}{split-base_end} initializes the plan table by inserting entries for all (possibly filtered) sources of the query graph.  Note that a nested query graph, \eg due to a nested SQL query, is recursively optimized and the received algebraic plan is inserted into the plan table for the singleton subproblem of the nested source (\coderef{split-rec}).  The costs for all these entries are set to 0 according to \Cout (\coderef{split-base_end}).  For our running example, three entries are inserted during this initialization and are depicted in the first three rows of \autoref{tbl:example-opt-split-alg}.
+Firstly, \coderefrange{split-base_begin}{split-base_end} \revisionrewrite{initialize} the plan table by inserting entries for all (possibly filtered) sources of the query graph.  Note that a nested query graph, \eg due to a nested SQL query, is recursively optimized and the received algebraic plan is inserted into the plan table for the singleton subproblem of the nested source (\coderef{split-rec}).  The costs for all these entries are set to 0 according to \Cout (\coderef{split-base_end}).  For our running example, three entries are inserted during this initialization and are depicted in the first three rows of \autoref{tbl:example-opt-split-alg}.
 
-Secondly, the plan table is filled with entries for every possible join order.  Therefore, any plan enumerator that is applicable for dynamic programming, \ie for any enumerated join both children subproblems are already solved, can be utilized in \coderef{split-join_enum}.  For the scope of our example, we assume that all join orders including Cartesian products are enumerated by a plan enumerator called \PEall.  Join enumeration returns the left and right subproblems to join together with the respective join condition.  As defined in \coderefrange{split-join_start}{split-join_end}, each enumerated join is then constructed, its algebraic cost is estimated, and the plan table is updated if the cost are lower than beforehand.  Note that if a subproblem was not yet inserted into the plan table, its former cost is implicitly assumed to be infinity.  As shown in \autoref{tbl:example-opt-split-alg}, the subproblems~\{R,~S\} and \{S,~T\} of our example can be computed using a join, whereas no join predicate for the subproblem~\{R,~S\} exist resulting in a comparatively large intermediate result and thus algebraic cost \wrt \Cout.  For the subproblem~\{R,~S,~T\} multiple subproblem splits, \ie join orders, are enumerated.  However, since \{R,~S\} was estimated to be the cheapest of the subproblems containing two base relations, the join order (R~\join \filter(S))~\join T is chosen.  For simplicity, we omit the cardinality of the final join result in the cost column as it is added for every possible join order.
+Secondly, the plan table is filled with entries for every possible join order.  Any plan enumerator that is applicable for dynamic programming, \ie for any enumerated join both children subproblems are already solved, can be utilized in \coderef{split-join_enum}.  For the scope of our example, we assume that all join orders including Cartesian products are enumerated by a plan enumerator called \PEall.  Join enumeration returns the left and right subproblems to join together with the respective join condition.  As defined in \coderefrange{split-join_start}{split-join_end}, each enumerated join is then constructed, its algebraic cost is estimated, and the plan table is updated if the cost \revisionrewrite{is} lower than beforehand.  Note that if a subproblem was not yet inserted into the plan table, its former cost is implicitly assumed to be infinity.  As shown in \autoref{tbl:example-opt-split-alg}, the subproblems~\{R,~S\} and \{S,~T\} of our example can be computed using a join, whereas no join predicate for the subproblem~\revisionrewrite{\{R,~T\}} exist resulting in a comparatively large intermediate result and thus algebraic cost \wrt \Cout.  For the subproblem~\{R,~S,~T\} multiple subproblem splits, \ie join orders, are enumerated.  However, since \{R,~S\} was estimated to be the cheapest of the subproblems containing two base relations, the join order (R~\join \filter(S))~\join T is chosen.  For simplicity, we omit the cardinality of the final join result in the cost column as it is added for every possible join order.
 
 Finally, \coderefrange{split-post_begin}{split-post_end} update the final algebraic plan by adding all operations that are present after all sources have been joined, \ie grouping, aggregation, sorting, limit, and projection.  However, the actual join order remains unchanged.  As the running example does not include such post-join operations, the plan table depicted in \autoref{tbl:example-opt-split-alg} is already complete and the final algebraic plan in the last row is returned (\coderef{split-ret_alg}).
 
 \begin{algfloat}[t]
-	\centering
-	\begin{algorithmic}[1]
-		\State \CommentLeft{Optimizes the query graph G by applying the algebraic step of \split.}
-		\Function{split\_algebraic\_step}{G}
-			\State \CommentLeft{maps subproblems to the locally optimal algebraic plan/cost}
-			\State PT = new AlgebraicPlanTable()\label{split-plan_table_alg}
-			\State \CommentLeft{optimize sources and optional filters}
-			\For{src $\in$ G.sources()}\label{split-base_begin}
-    			\State s = Subproblem(src)
-    			\If{src.is\_base\_relation()}
-					\State alg\_plan = new ScanOp(src)
-					\State PT[s].plan = alg\_plan
-    			\Else \Comment{optimize nested query graph recursively}
-    				\State PT[s].plan = \Call{split\_algebraic\_step}{src}\label{split-rec}
-    			\EndIf
-    			\If{src.has\_filter()}
-    				\State alg\_plan = new FilterOp(s, src.filter())
-					\State PT[s].plan = alg\_plan
-    			\EndIf
-				\State PT[s].cost = 0 \Comment{initialize sources without cost}\label{split-base_end}
-    		\EndFor
-			\State \CommentLeft{optimize join order by enumerating subproblem splits}
-  	    	\For{l, r, cond $\in$ PE.enumerate(G)}\label{split-join_enum}
-  				\State alg\_plan = new JoinOp(l, r, cond)\label{split-join_start}
-				\State \CommentLeft{estimate cost according to algebraic cost model and add subcosts}
-				\State alg\_cost = AC.estimate(alg\_plan) + PT[l].cost + PT[r].cost
-				\State s = alg\_plan.get\_subproblem() \Comment{unifies left and right subproblems}
-				\If{alg\_cost < PT[s].cost}
-					\State PT[s].plan = alg\_plan \Comment{update plan}
-					\State PT[s].cost = alg\_cost \Comment{update cost}\label{split-join_end}
-				\EndIf
-  	  	   	\EndFor
-			\State \CommentLeft{optimize post-join operations, e.g., grouping}
-			\State s = Subproblem(G.joins()) \Comment{subproblem with all sources joined}\label{split-post_begin}
-  	  	   	\If{G.has\_grouping()}
-  	 			\State alg\_plan = new GroupingOp(s, G.grouping())
-				\State PT[s].plan = alg\_plan \Comment{update plan}
-				\State
-  		   	\EndIf
-  	      	\State ...\Comment{similar if's for aggregation, sorting, limit, and projection}\label{split-post_end}
-			\State \Return PT[s].plan \Comment{return final algebraic plan}\label{split-ret_alg}
-		\EndFunction
-		\Statex
-		\State \CommentLeft{Optimizes the algebraic plan by applying the physical step of \split.}
-		\Function{split\_physical\_step}{alg\_plan}
-			\State \CommentLeft{maps subproblems to the locally optimal QEP per distinct post-condition}
-			\State PT = new PhysicalPlanTable()\label{split-plan_table_phys}
-			\CForAll{brown!60}{alg\_op $\in$ alg\_plan} \Comment{in bottom-up manner}\label{split-physical_begin}
-				\CState{brown!60}\Call{optimize\_physically}{PT, alg\_op}\label{split-physical_end}
-			\EndFor
-			\State s = alg\_plan.get\_subproblem() \Comment{subproblem representing entire algebraic plan}
-			\State \Return plan where cost is minimal in PT[s] \Comment{return final QEP}\label{split-ret_phys}
-		\EndFunction
-		\Statex
-		\Function{split}{G}\label{split-main_begin}
-			\State alg\_plan = \Call{split\_algebraic\_step}{G}
-			\State \Return \Call{split\_physical\_step}{alg\_plan}\label{split-main_end}
-		\EndFunction
-	\end{algorithmic}
-	\caption{Pseudocode for \split.}
-	\label{alg:split}
+    \centering
+    \begin{algorithmic}[1]
+       \State \CommentLeft{Optimizes the query graph G by applying the algebraic step of \split.}
+       \Function{split\_algebraic\_step}{G}
+          \State \CommentLeft{maps subproblems to the locally optimal algebraic plan/cost}
+          \State PT = new AlgebraicPlanTable()\label{split-plan_table_alg}
+          \State \CommentLeft{optimize sources and optional filters}
+          \For{src $\in$ G.sources()}\label{split-base_begin}
+              \State s = Subproblem(src)
+              \If{src.is\_base\_relation()}
+                \State alg\_plan = new ScanOp(src)
+                \State PT[s].plan = alg\_plan
+              \Else \Comment{optimize nested query graph recursively}
+                 \State PT[s].plan = \Call{split\_algebraic\_step}{src}\label{split-rec}
+              \EndIf
+              \If{src.has\_filter()}
+                 \State alg\_plan = new FilterOp(s, src.filter())
+                \State PT[s].plan = alg\_plan
+              \EndIf
+             \State PT[s].cost = 0 \Comment{initialize sources without cost}\label{split-base_end}
+           \EndFor
+          \State \CommentLeft{optimize join order by enumerating subproblem splits}
+           \For{l, r, cond $\in$ PE.enumerate(G)}\label{split-join_enum}
+             \State alg\_plan = new JoinOp(l, r, cond)\label{split-join_start}
+             \State \CommentLeft{estimate cost according to algebraic cost model and add subcosts}
+             \State cost = AC.estimate(alg\_plan) + PT[l].cost + PT[r].cost
+             \State s = alg\_plan.get\_subproblem() \Comment{unifies left and right subproblems}
+             \If{\revisionadd{\textbf{not} PT.has(s) \textbf{or}} cost < PT[s].cost}
+                \State PT[s].plan = alg\_plan \Comment{update plan}
+                \State PT[s].cost = cost \Comment{update cost}\label{split-join_end}
+             \EndIf
+              \EndFor
+          \State \CommentLeft{optimize post-join operations, e.g., grouping}
+          \State s = Subproblem(G.joins()) \Comment{subproblem with all sources joined}\label{split-post_begin}
+              \If{G.has\_grouping()}
+             \State alg\_plan = new GroupingOp(s, G.grouping())
+             \State PT[s].plan = alg\_plan \Comment{update plan}
+             \State
+              \EndIf
+           \State ...\Comment{similar if's for aggregation, sorting, limit, and projection}\label{split-post_end}
+          \State \Return PT[s].plan \Comment{return final algebraic plan}\label{split-ret_alg}
+       \EndFunction
+       \Statex
+       \State \CommentLeft{Optimizes the algebraic plan by applying the physical step of \split.}
+       \Function{split\_physical\_step}{alg\_plan}
+          \State \CommentLeft{maps subproblems to the locally optimal QEP per distinct post-condition}
+          \State PT = new PhysicalPlanTable()\label{split-plan_table_phys}
+          \CForAll{brown!60}{alg\_op $\in$ alg\_plan} \Comment{in bottom-up manner}\label{split-physical_begin}
+             \CState{brown!60}\Call{optimize\_physically}{PT, alg\_op}\label{split-physical_end}
+          \EndFor
+          \State s = alg\_plan.get\_subproblem() \Comment{subproblem representing entire algebraic plan}
+          \State \Return plan where cost is minimal in PT[s] \Comment{return final QEP}\label{split-ret_phys}
+       \EndFunction
+       \Statex
+       \Function{split}{G}\label{split-main_begin}
+          \State alg\_plan = \Call{split\_algebraic\_step}{G}
+          \State \Return \Call{split\_physical\_step}{alg\_plan}\label{split-main_end}
+       \EndFunction
+    \end{algorithmic}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{Pseudocode for \split.}
+    \label{alg:split}
 \end{algfloat}
 
 \begin{algfloat}[t]
-	\centering
-	\begin{algorithmic}[1]
-		\State \CommentLeft{Optimizes the query graph G by applying \holistic.}
-		\Function{holistic\_helper}{G}
-			\State \CommentLeft{maps subproblems to the locally optimal QEP/cost per distinct post-condition}
-			\State PT = new PhysicalPlanTable()\label{holistic-plan_table}
-			\State \CommentLeft{optimize sources and optional filters}
-			\For{src $\in$ G.sources()}
-    			\State s = Subproblem(src)
-    			\If{src.is\_base\_relation()}
-    				\State alg\_plan = new ScanOp(src)
-    				\CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
-    			\Else \Comment{optimize nested query graph recursively}
-    				\State PT[s] = \Call{holistic\_helper}{src}\label{holistic-rec}
-    			\EndIf
-    			\If{src.has\_filter()}
-    				\State alg\_plan = new FilterOp(s, src.filter())
-    				\CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
-    			\EndIf
-				\State
-    		\EndFor
-			\State \CommentLeft{optimize join order by enumerating subproblem splits}
-  	    	\For{l, r, cond $\in$ PE.enumerate(G)}
-  				\State alg\_plan = new JoinOp(l, r, cond)
-  				\CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\label{holistic-join}
-				\State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.4ex}
-  	  	   	\EndFor
-			\State \CommentLeft{optimize post-join operations, e.g., grouping}
-			\State s = Subproblem(G.joins()) \Comment{subproblem with all sources joined}
-  	  	   	\If{G.has\_grouping()}
-  	 			\State alg\_plan = new GroupingOp(s, G.grouping())
-  	   			\CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
-  	   			\State s = alg\_plan.get\_subproblem() \Comment{update current subproblem}\label{holistic-s_update}
-  		   	\EndIf
-  	      	\State ...\Comment{similar if's for aggregation, sorting, limit, and projection}
-			\State \Return PT[s] \Comment{return post-cond. to QEP/cost mapping}\label{holistic-ret_map}
-		\EndFunction
-		\Statex\State\State\State\State\State\State\vspace{0.7ex}\State\State\Statex
-		\Function{holistic}{G}
-			\State map = \Call{holistic\_helper}{G}
-			\State \Return plan where cost is minimal in map.values() \Comment{return final QEP}\label{holistic-ret}
-		\EndFunction
-	\end{algorithmic}
-	\caption{Pseudocode for \holistic.}
-	\label{alg:holistic}
+    \centering
+    \begin{algorithmic}[1]
+       \State \CommentLeft{Optimizes the query graph G by applying \holistic.}
+       \Function{holistic\_helper}{G}
+          \State \CommentLeft{maps subproblems to the locally optimal QEP/cost per distinct post-condition}
+          \State PT = new PhysicalPlanTable()\label{holistic-plan_table}
+          \State \CommentLeft{optimize sources and optional filters}
+          \For{src $\in$ G.sources()}
+              \State s = Subproblem(src)
+              \If{src.is\_base\_relation()}
+                 \State alg\_plan = new ScanOp(src)
+                 \CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
+              \Else \Comment{optimize nested query graph recursively}
+                 \State PT[s] = \Call{holistic\_helper}{src}\label{holistic-rec}
+              \EndIf
+              \If{src.has\_filter()}
+                 \State alg\_plan = new FilterOp(s, src.filter())
+                 \CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
+              \EndIf
+             \State
+           \EndFor
+          \State \CommentLeft{optimize join order by enumerating subproblem splits}
+           \For{l, r, cond $\in$ PE.enumerate(G)}
+             \State alg\_plan = new JoinOp(l, r, cond)
+             \CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\label{holistic-join}
+             \State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.1ex}\State\vspace{0.4ex}
+              \EndFor
+          \State \CommentLeft{optimize post-join operations, e.g., grouping}
+          \State s = Subproblem(G.joins()) \Comment{subproblem with all sources joined}
+              \If{G.has\_grouping()}
+             \State alg\_plan = new GroupingOp(s, G.grouping())
+                 \CState{brown!60}\Call{optimize\_physically}{PT, alg\_plan}\textcolor{brown!60}{[]}
+                 \State s = alg\_plan.get\_subproblem() \Comment{update current subproblem}\label{holistic-s_update}
+              \EndIf
+           \State ...\Comment{similar if's for aggregation, sorting, limit, and projection}
+          \State \Return PT[s] \Comment{return post-cond. to QEP/cost mapping}\label{holistic-ret_map}
+       \EndFunction
+       \Statex\State\State\State\State\State\State\vspace{0.7ex}\State\State\Statex
+       \Function{holistic}{G}
+          \State map = \Call{holistic\_helper}{G}
+          \State \Return plan where cost is minimal in map.values() \Comment{return final QEP}\label{holistic-ret}
+       \EndFunction
+    \end{algorithmic}
+    \caption{Pseudocode for \holistic.}
+    \label{alg:holistic}
 \end{algfloat}
 
 \begin{algfloat}[!h]
-	\centering
-	\begin{algorithmic}[1]
-		\State \CommentLeft{Physically optimizes the algebraic operator. Inserts found QEPs into the plan table.}
-	 	\Function{optimize\_physically}{PT, alg\_op}
-  	 		\ForAll{\textit{registered physical operators} phys\_op}\label{physical-iterate_ops}
-  	 			\If{\textbf{not} phys\_op \textit{covers} alg\_op}\label{physical-skip_ops_begin}
-					\State \Continue\label{physical-skip_ops_end}
-				\EndIf
-				\State pre\_conds = phys\_op.get\_pre\_conds()
-				\State s\_children = phys\_op.get\_children\_subproblems(alg\_op)\label{physical-s_children}
-				\State \CommentLeft{iterate over permutations of already solved children subproblems}
-				\For{p $\in$ permutate(s\_children)}\label{physical-iterate_permutations}
-				\State \CommentLeft{iterate over Cartesian product of current permutation}
-					\For{post\_conds, entries $\in$ PT[p[0]] $\times$ \dots $\times$ PT[p[n]]}\label{physical-iterate_children}
-						\If{\textbf{not} pre\_conds.implied\_by(post\_conds)}\label{physical-skip_children_begin}
-							\State \Continue\label{physical-skip_children_end}
-						\EndIf
-						\State qep = new phys\_op(entries[0].plan, \dots, entries[n].plan)\label{physical-qep_begin}
-						\State post\_cond = phys\_op.get\_post\_cond(post\_conds)
-						\State \CommentLeft{estimate cost according to physical cost model and add subcosts}
-						\State phys\_cost = PC.estimate(qep) + entries[0].cost + \dots + entries[n].cost
-						\State s = qep.get\_subproblem() \Comment{unifies and adapts children subproblems}
-						\If{phys\_cost < PT[s][post\_cond].cost}
-							\State PT[s][post\_cond].plan = qep \Comment{update plan}
-							\State PT[s][post\_cond].cost = phys\_cost \Comment{update cost}\label{physical-qep_end}
-						\EndIf
-					\EndFor
-				\EndFor
-  	 		\EndFor
-  	  	\EndFunction
- 	\end{algorithmic}
- 	\caption{Pseudocode for the physical optimization.}
- 	\label{alg:physical}
+    \centering
+    \begin{algorithmic}[1]
+       \State \CommentLeft{Physically optimizes the algebraic operator. Inserts found QEPs into the plan table.}
+       \Function{optimize\_physically}{PT, alg\_op}
+          \ForAll{\textit{registered physical operators} phys\_op}\label{physical-iterate_ops}
+             \If{\textbf{not} phys\_op \textit{covers} alg\_op}\label{physical-skip_ops_begin}
+                \State \Continue\label{physical-skip_ops_end}
+             \EndIf
+             \State pre\_conds = phys\_op.get\_pre\_conds()
+             \State s\_children = phys\_op.get\_children\_subproblems(alg\_op)\label{physical-s_children}
+             \State \CommentLeft{iterate over permutations of already solved children subproblems}
+             \For{p $\in$ \revisionrewrite{permute}(s\_children)}\label{physical-iterate_permutations}
+             \State \CommentLeft{iterate over Cartesian product of current permutation}
+                \For{post\_conds, entries $\in$ PT[p[0]] $\times$ \dots $\times$ PT[p[n]]}\label{physical-iterate_children}
+                   \If{\textbf{not} pre\_conds.implied\_by(post\_conds)}\label{physical-skip_children_begin}
+                      \State \Continue\label{physical-skip_children_end}
+                   \EndIf
+                   \State qep = new phys\_op(entries[0].plan, \dots, entries[n].plan)\label{physical-qep_begin}
+                   \State post\_cond = phys\_op.get\_post\_cond(post\_conds)
+                   \State \CommentLeft{estimate cost according to physical cost model and add subcosts}
+                   \State cost = PC.estimate(qep) + entries[0].cost + \dots + entries[n].cost
+                   \State s = qep.get\_subproblem() \Comment{unifies and adapts children subproblems}
+                   \If{\revisionadd{\textbf{not} PT.has(s, post\_cond) \textbf{or}} cost < PT[s][post\_cond].cost}
+                      \State PT[s][post\_cond].plan = qep \Comment{update plan}\label{physical-qep_update}
+                      \State PT[s][post\_cond].cost = cost \Comment{update cost}\label{physical-qep_end}
+                   \EndIf
+                \EndFor
+             \EndFor
+          \EndFor
+       \EndFunction
+    \end{algorithmic}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{Pseudocode for the physical optimization.}
+    \label{alg:physical}
 \end{algfloat}
 
 \textbf{Physical Optimization.}
 The subsequent physical optimization step utilizes a slightly adapted plan table structure.  Besides storing QEPs and physical costs instead of algebraic plans and algebraic costs, the mapping key is no longer only a subproblem.  Instead, a combination of a subproblem and an output property is used as compound key.  We refer to this output property as \emph{post-condition} from this point on.  Line~\ref{split-plan_table_phys} first allocates such an empty plan table before \coderefrange{split-physical_begin}{split-physical_end} call the helper function \textproc{optimize\_physically} for each algebraic subplan in a bottom-up manner.
 
-\autoref{alg:physical} defines this helper function that iterates over all available physical operators (\coderef{physical-iterate_ops}), all children permutations to determine a total order (\coderef{physical-iterate_permutations}), and the Cartesian product of the current children permutation (\coderef{physical-iterate_children}).  During iteration, \coderefrange{physical-skip_ops_begin}{physical-skip_ops_end} skip physical operators which do not \emph{cover}, \ie implement, the given algebraic operator.  For the time being, covering is only defined on singleton physical operators, however, we extend this to fused physical operators, \ie a single physical operator which unites the logic of multiple algebraic operators, in \autoref{sec:impl-fused_phys_ops}.  Additionally, pre-conditions of physical operators, \eg the condition that a MJ needs its input relations to be sorted on the join attributes, are tested against the post-conditions provided by the children permutation.  If not fulfilled, the respective children permutation is skipped as well (\coderefrange{physical-skip_children_begin}{physical-skip_children_end}).  For each of the qualifying combination, \coderefrange{physical-qep_begin}{physical-qep_end} construct the respective QEP, estimate its physical cost, and update the plan table.  This part is very similar to the algebraic step (see \coderefrange{split-join_start}{split-join_end} of \autoref{alg:split}).  To finally determine the optimal QEP, the entry of the final subproblem with the lowest cost while ignoring the post-conditions is chosen (\coderef{split-ret_phys} of \autoref{alg:split}).
+\autoref{alg:physical} defines this helper function that iterates over all available physical operators (\coderef{physical-iterate_ops}), all children permutations to determine a total order (\coderef{physical-iterate_permutations}), and the Cartesian product of the current children permutation (\coderef{physical-iterate_children}).  During iteration, \coderefrange{physical-skip_ops_begin}{physical-skip_ops_end} skip physical operators which do not \emph{cover}, \ie implement, the given algebraic operator.  For the time being, covering is only defined on singleton physical operators, however, we extend this to fused physical operators, \ie a single physical operator which unites the logic of multiple algebraic operators, in \autoref{sec:impl-fused_phys_ops}.  Additionally, pre-conditions of physical operators, \eg the condition that a MJ needs its input relations to be sorted on the join attributes, are tested against the post-conditions provided by the children permutation.  If not fulfilled, the respective children permutation is skipped as well (\coderefrange{physical-skip_children_begin}{physical-skip_children_end}).  For each of the qualifying \revisionrewrite{combinations}, \coderefrange{physical-qep_begin}{physical-qep_end} construct the respective QEP, estimate its physical cost, and update the plan table.  This part is very similar to the algebraic step (see \coderefrange{split-join_start}{split-join_end} of \autoref{alg:split}).  To finally determine the optimal QEP, the entry of the final subproblem with the lowest cost while ignoring the post-conditions is chosen (\coderef{split-ret_phys} of \autoref{alg:split}).
 
 \autoref{tbl:example-opt-split-phys} depicts the enumeration for our running example given the algebraic plan constructed beforehand.  Note that we need to distinguish between subproblems with and without filter and denote the filtered base relation~S by~S'.  We can observe that two QEPs for the subproblem~\{T\} are memorized since they result in different post-conditions.  Also sortedness on the join attribute S.id for the subproblem~\{R,~S'\} can be provided, however, is quite costly due to building the hash table on the relatively large input~$R$.  Therefore, applying a MJ as top-level join (last row) is more costly than the final QEP that makes use of a SHJ on SHJ($S$, $R$) and $T_1$.
 
-\begin{table}[t]
-	\centering
-	\small
-	\begin{subtable}[b]{\columnwidth}
-		\centering
-		\vspace{-.15cm}
-		\caption{Algebraic optimization step.}
-		\label{tbl:example-opt-split-alg}
-		\begin{tabular}{|c!{\vrule width .8pt}c!{\vrule width .8pt}r|}
-			\hline
-			\underline{\smash{\textbf{Subproblem}}} & \textbf{Algebraic Plan} & \textbf{Cost} \\
-			\noalign{\hrule height .8pt}
-			\{R\} & R & 0 \\
-			\hline
-			\{S\} & \filter(S) & 0 \\
-			\hline
-			\{T\} & T & 0 \\
-			\hline
-			\{R, S\} & R \join \filter(S) & 80 \\
-			\hline
-			\{S, T\} & \filter(S) \join T & 90 \\
-			\hline
-			\{R, T\} & R $\times$ T & 15,000 \\
-			\hline
-			\{R, S, T\} & (R \join \filter(S)) \join T & $80 + |\text{R},\text{S}, \text{T}|$ \\
-			\hline
-		\end{tabular}
-	\end{subtable}%
+\revisionadd{
+    \textbf{Pruning.}
+    There are multiple ways to exploit pruning.  For example, we can utilize pruning in the physical optimization step, \ie in \textproc{optimize\_physically}.  In line~19, our pseudocode is simplified to only check the plan table entry for the given post-condition.  However, pruning can be added by discarding entries which are dominated by others, \ie in terms of cost and post-condition.  For example, the SHJ-entry for the subproblem~\{S',~T\} in \autoref{tbl:example-opt-holistic} can be pruned since the MJ-entry for this subproblem dominates it\revisionremove{ in terms of cost, \ie 490 is cheaper than 520, and output property, \ie the empty output property is trivially implied}.  Vice versa, instead of always inserting new entries, old entries are updated if they are subsumed by the new one.  This avoids unnecessary -- in the sense of implied -- entries in the plan table and is applied for all approaches.
+}
 
-	\vspace{.4cm}
-	\begin{subtable}[b]{\columnwidth}
-		\centering
-		\caption{Physical optimization step.}
-		\label{tbl:example-opt-split-phys}
-		\begin{tabular}{|c!{\vrule width .8pt}l!{\vrule width .8pt}c!{\vrule width .8pt}r|}
-			\hline
-			\underline{\smash{\textbf{Subproblem}}} & \underline{\smash{\textbf{Output Property}}} & \textbf{QEP} & \textbf{Cost} \\
-			\noalign{\hrule height .8pt}
-			\{R\} & --- & Scan(R) $\eqcolon R$ & 150 \\
-			\hline
-			\{S\} & sorted on S.id & Scan(S) & 100 \\
-			\hline
-			\{S'\} & sorted on S.id & BF(Scan(S)) $\eqcolon S$ & 200 \\
-			\hline
-			\multirow{2}{*}{\{T\}} & --- & Scan(T) $\eqcolon T_1$ & 100 \\
-			\cline{2-4}
-			& sorted on T.sid & ISAM(T,sid) $\eqcolon T_2$ & 110 \\
-			\hline
-			\multirow{2}{*}{\{R, S'\}} & --- & SHJ($S$, $R$) & 620 \\
-			\cline{2-4}
-			& sorted on S.id & SHJ($R$, $S$) & 655 \\
-			\hline
-			\multirow{2}{*}{\{R, S', T\}} & --- & SHJ(SHJ($S$, $R$), $T_1$) & 940 \\
-			\cline{2-4}
-			& sorted on S.id/T.sid & MJ(SHJ($R$, $S$), $T_2$) & 945 \\
-			\cline{2-4}
-			\hline
-		\end{tabular}
-	\end{subtable}
-	\vspace*{\captiongap}
-	\caption{Enumeration of \split.}
-	\label{tbl:example-opt-split}
+\begin{table}[t]
+    \centering
+    \small
+    \begin{subtable}[b]{\columnwidth}
+       \centering
+       \vspace{-.15cm}
+       \caption{Algebraic optimization step.}
+       \label{tbl:example-opt-split-alg}
+       \begin{tabular}{|c!{\vrule width .8pt}c!{\vrule width .8pt}r|}
+          \hline
+          \underline{\smash{\textbf{Subproblem}}} & \textbf{Algebraic Plan} & \textbf{Cost} \\
+          \noalign{\hrule height .8pt}
+          \{R\} & R & 0 \\
+          \hline
+          \{S\} & \filter(S) & 0 \\
+          \hline
+          \{T\} & T & 0 \\
+          \hline
+          \{R, S\} & R \join \filter(S) & 80 \\
+          \hline
+          \{S, T\} & \filter(S) \join T & 90 \\
+          \hline
+          \{R, T\} & R $\times$ T & 15,000 \\
+          \hline
+          \{R, S, T\} & (R \join \filter(S)) \join T & $80 + |\text{R},\text{S}, \text{T}|$ \\
+          \hline
+       \end{tabular}
+    \end{subtable}%
+
+    \vspace{.4cm}
+    \begin{subtable}[b]{\columnwidth}
+       \centering
+       \caption{Physical optimization step.}
+       \label{tbl:example-opt-split-phys}
+       \begin{tabular}{|c!{\vrule width .8pt}c!{\vrule width .8pt}c!{\vrule width .8pt}r|}
+          \hline
+          \underline{\smash{\textbf{Subproblem}}} & \underline{\smash{\textbf{Post-Condition}}} & \textbf{QEP} & \textbf{Cost} \\
+          \noalign{\hrule height .8pt}
+          \{R\} & --- & Scan(R) $\eqcolon R$ & 150 \\
+          \hline
+          \{S\} & sorted on S.id & Scan(S) & 100 \\
+          \hline
+          \{S'\} & sorted on S.id & BF(Scan(S)) $\eqcolon S$ & 200 \\
+          \hline
+          \multirow{2}{*}{\{T\}} & --- & Scan(T) $\eqcolon T_1$ & 100 \\
+          \cline{2-4}
+          & sorted on T.sid & ISAM(T,sid) $\eqcolon T_2$ & 110 \\
+          \hline
+          \multirow{2}{*}{\{R, S'\}} & --- & SHJ($S$, $R$) & 620 \\
+          \cline{2-4}
+          & sorted on S.id & SHJ($R$, $S$) & 655 \\
+          \hline
+          \multirow{2}{*}{\{R, S', T\}} & --- & SHJ(SHJ($S$, $R$), $T_1$) & 940 \\
+          \cline{2-4}
+          & sorted on S.id/T.sid & MJ(SHJ($R$, $S$), $T_2$) & 945 \\
+          \cline{2-4}
+          \hline
+       \end{tabular}
+    \end{subtable}
+    \vspace*{\captiongap}
+    \caption{Enumeration of \split.}
+    \label{tbl:example-opt-split}
 \end{table}
 
 \subsection{\holistic}
 \label{sec:impl-holistic}
 
-In general, \split and \holistic share many similarities.  Both optimize their data sources potentially recursively, enumerate join orderings, add post-join operations, and can be implemented using dynamic programming.  The main difference between both approaches is the point in time at which the physical optimization step is performed, as highlighted in brown.  Instead of first constructing the entire algebraic plan before applying physical optimization only once thereafter like in \autoref{alg:split}, \holistic determines the physical operators directly at construction of algebraic operators.  Therefore, the helper function \textproc{optimize\_physically} is called multiple times --- especially for every enumerated join order --- as described in \autoref{alg:holistic}.
+In general, \split and \holistic\ \revisionrewrite{have much in common}.  Both optimize their data sources potentially recursively, enumerate join orderings, add post-join operations, and can be implemented using dynamic programming.  The main difference between both approaches is the point in time at which the physical optimization step is performed, as highlighted in brown.  Instead of first constructing the entire algebraic plan before applying physical optimization only once thereafter like in \autoref{alg:split}, \holistic determines the physical operators directly at construction of algebraic operators.  Therefore, the helper function \textproc{optimize\_physically} is called multiple times --- \revisionrewrite{particularly} for every enumerated join order --- as described in \autoref{alg:holistic}.
 
-\autoref{tbl:example-opt-holistic} depicts the enumeration of \holistic for the running example.  We can observe that the plan table represents more or less a superset of the one in \autoref{tbl:example-opt-split-phys}.  The first five rows for singleton subproblems remain unchanged, however, subproblems representing another join order than utilized in \split, \eg \{S',~T'\} and \{R,~T\}, are indeed included.  Exactly this observation is the key for finding a globally optimal QEP.  Note that, for example, the SHJ-entry for the subproblem~\{S',~T\}, could be pruned since the MJ-entry for this subproblem dominates it in terms of cost, \ie 490 is cheaper than 520, and output property, \ie the empty output property is trivially implied.  Due to the additionally included subproblems, the full subproblem~\{R,~S',~T\} is able to also apply the join order R \join (\filter(S) \join T) and utilize a MJ between~$S$ and~$T_2$.  To finally determine the globally optimal QEP, again the entry with the lowest cost while ignoring the post-conditions is chosen (\coderef{holistic-ret} of \autoref{alg:holistic}).  As already stated in \autoref{sec:example}, this join order is more costly \wrt \Cout, however, the resulting QEP has lower estimated physical cost compared to the QEP computed by \split due to the freedom of applying any possible join order while already considering the physical cost model.
+\autoref{tbl:example-opt-holistic} depicts the enumeration of \holistic for the running example.  We observe that the plan table \revisionrewrite{mostly represents} a superset of the one in \autoref{tbl:example-opt-split-phys}.  The first five rows for singleton subproblems remain unchanged, however, subproblems representing another join order than utilized in \split, \eg \revisionrewrite{\{S',~T\}} and \{R,~T\}, are \revisionremove{indeed }included.  This observation is the key for finding a globally optimal QEP.  \revisionremove{Note that, for example, the SHJ-entry for the subproblem~\{S',~T\}, could be pruned since the MJ-entry for this subproblem dominates it in terms of cost, \ie 490 is cheaper than 520, and output property, \ie the empty output property is trivially implied.}  Due to the additionally included subproblems, the full subproblem~\{R,~S',~T\} is able to also apply the join order R \join (\filter(S) \join T) and utilize a MJ between~$S$ and~$T_2$.  To finally determine the globally optimal QEP, again the entry with the lowest cost while ignoring the post-conditions is chosen (\coderef{holistic-ret} of \autoref{alg:holistic}).  As already stated in \autoref{sec:example}, this join order is more costly \wrt \Cout, however, the resulting QEP has lower estimated physical cost compared to the QEP computed by \split due to the freedom of applying any possible join order while already considering the physical cost model.
 
 Lastly, we want to mention two caveats of \autoref{alg:holistic}.  (1) In \coderef{holistic-s_update}, we keep track of the current subproblem and elevate subproblems to the operations occurring after the final join, \eg distinguish between joining all sources and applying an additional grouping afterward.  This change is necessary since physical optimization is not only performed during join ordering but also for all other operations.  (2) Strictly speaking, the recursion for a nested query graphs in \coderef{holistic-rec} yields a greedy local optimization.  However, under certain assumptions, which are fulfilled in practice as discussed in the next section, the resulting local optimum coincides with the global optimum.
 
+\revisionadd{
+    \subsection{Pruning Variant: \holisticpruned}
+    \label{sec:impl-holistic_pruned}
+
+    Besides pruning in the physical optimization step, we can utilize known pruning techniques for top-down and bottom-up plan enumerators to restrict the search space during holistic optimization.  For top-down like \TDbasic~\cite{td_basic_name, td_basic_idea}, \ca{top_down_pruning} propose the application of \emph{branch-and-bound pruning} using \emph{accumulated-cost bounding} to prune, for example, the right subproblem of a join if the left subproblem was already more costly than the remaining budget to the cost of the currently best found plan.  For bottom-up like \DPccp~\cite{dp_ccp} or \PEall, \ca{mutable_join_ordering} propose the application of \emph{initialized cost-based pruning} using GOO~\cite{goo} to get an upper bound for the physical costs early, \ie before the actual optimization, and to prune subplans that are more costly than this upper bound.  We implemented both techniques for \holistic and refer to the pruning variant as \holisticpruned from now on.
+}
 
 \begin{table}[t]
-	\centering
-	\small
-	\begin{tabular}{|c!{\vrule width .8pt}l!{\vrule width .8pt}c!{\vrule width .8pt}r|}
-		\hline
-		\underline{\smash{\textbf{Subproblem}}} & \underline{\smash{\textbf{Output Property}}} & \textbf{QEP} & \textbf{Cost} \\
-		\noalign{\hrule height .8pt}
-		\{R\} & --- & Scan(R) $\eqcolon R$ & 150 \\
-		\hline
-		\{S\} & sorted on S.id & Scan(S) & 100 \\
-		\hline
-		\{S'\} & sorted on S.id & BF(Scan(S)) $\eqcolon S$ & 200 \\
-		\hline
-		\multirow{2}{*}{\{T\}} & --- & Scan(T) $\eqcolon T_1$ & 100 \\
-		\cline{2-4}
-		& sorted on T.sid & ISAM(T,sid) $\eqcolon T_2$ & 110 \\
-		\hline
-		\multirow{2}{*}{\{R, S'\}} & --- & SHJ($S$, $R$) & 620 \\
-		\cline{2-4}
-		& sorted on S.id & SHJ($R$, $S$) & 655 \\
-		\hline
-		\multirow{2}{*}{\{S', T\}} & --- & SHJ($S$, $T_1$) & 520 \\
-		\cline{2-4}
-		& sorted on S.id/T.sid & MJ($S$, $T_2$) & 490 \\
-		\hline
-		\multirow{2}{*}{\{R, T\}} & --- & NLJ($R$, $T_1$) & 15,250 \\
-		\cline{2-4}
-		& sorted on T.sid & NLJ($R$, $T_2$) & 15,260 \\
-		\hline
-		\multirow{2}{*}{\{R, S', T\}} & --- & SHJ(MJ($S$, $T_2$), $R$) & 925 \\
-		\cline{2-4}
-		& sorted on S.id/T.sid & SHJ($R$, MJ($S$, $T_2$)) & 955 \\
-		\hline
-	\end{tabular}
-	\caption{Enumeration of \holistic.}
-	\label{tbl:example-opt-holistic}
+    \centering
+    \small
+    \begin{tabular}{|c!{\vrule width .8pt}c!{\vrule width .8pt}c!{\vrule width .8pt}r|}
+       \hline
+       \underline{\smash{\textbf{Subproblem}}} & \underline{\smash{\textbf{Post-Condition}}} & \textbf{QEP} & \textbf{Cost} \\
+       \noalign{\hrule height .8pt}
+       \{R\} & --- & Scan(R) $\eqcolon R$ & 150 \\
+       \hline
+       \{S\} & sorted on S.id & Scan(S) & 100 \\
+       \hline
+       \{S'\} & sorted on S.id & BF(Scan(S)) $\eqcolon S$ & 200 \\
+       \hline
+       \multirow{2}{*}{\{T\}} & --- & Scan(T) $\eqcolon T_1$ & 100 \\
+       \cline{2-4}
+       & sorted on T.sid & ISAM(T,sid) $\eqcolon T_2$ & 110 \\
+       \hline
+       \multirow{2}{*}{\{R, S'\}} & --- & SHJ($S$, $R$) & 620 \\
+       \cline{2-4}
+       & sorted on S.id & SHJ($R$, $S$) & 655 \\
+       \hline
+       \multirow{2}{*}{\{S', T\}} & --- & SHJ($S$, $T_1$) & 520 \\
+       \cline{2-4}
+       & sorted on S.id/T.sid & MJ($S$, $T_2$) & 490 \\
+       \hline
+       \multirow{2}{*}{\{R, T\}} & --- & NLJ($R$, $T_1$) & 15,250 \\
+       \cline{2-4}
+       & sorted on T.sid & NLJ($R$, $T_2$) & 15,260 \\
+       \hline
+       \multirow{2}{*}{\{R, S', T\}} & --- & SHJ(MJ($S$, $T_2$), $R$) & 925 \\
+       \cline{2-4}
+       & sorted on S.id/T.sid & SHJ($R$, MJ($S$, $T_2$)) & 955 \\
+       \hline
+    \end{tabular}
+    \caption{Enumeration of \holistic.}
+    \label{tbl:example-opt-holistic}
 \end{table}
+
+\subsection{Hybrid Approach: \topk}
+\label{sec:impl-topk}
+
+When comparing \split and \holistic one can make an interesting observation.  \holistic can be rephrased as two-step optimization problem as follows.  Firstly, solve algebraic optimization by computing not only the best algebraic plan but all possible join orders.  Afterward, perform the physical optimization step for all algebraic plans received.  In practice, this strategy would surely increase the optimization time as both steps are no longer \revisionrewrite{interleaved}, however, it hints at the application of a hybrid approach, namely \topk.
+
+\topk computes the~k algebraic plans with minimal algebraic cost before resuming with the physical optimization of all those algebraic plans.  Afterward, the QEP with the lowest physical cost is selected.  Note that to compute the~k optimal algebraic plans \wrt the algebraic cost model, the~k cheapest partial algebraic plans have to be stored for each enumerated subproblem during the algebraic optimization step.
+
+The hyperparameter~k can be chosen freely, \eg k=1 decays to be \split, whereas k=$\infty$ decays to be \holistic.  If~k is chosen large enough, \ie the join order of the globally optimal QEP is contained in the~k cheapest algebraic plans, the QEP determined by \topk coincides with the QEP determined by \holistic.  Therefore, we will mostly focus on the two extrema \split and \holistic in the following but also include \topk in \revisionremove{parts of }our evaluation.  \revisionadd{Future work could replace the static number~k with a dynamic value, \ie start with a small~k and then incrementally increase~k as long as a certain budget, \eg the ratio of estimated physical cost versus invested optimization time, has not been exhausted.}
 
 \subsection{Extension to Fused Physical Operators}
 \label{sec:impl-fused_phys_ops}
 
 So far, we restricted ourselves to singleton physical operators that only implement a single algebraic operator.  However, there are also fused physical operators that directly implement the logic of multiple algebraic operators.  The most prominent example of a fused physical operator is the hash-based group-join~(HBGJ)~\cite{groupjoin_invented, groupjoin, book_moerkotte} uniting the join and the grouping logic by reusing a single hash table.  We say that the HBGJ covers the \emph{pattern} of an algebraic join operator followed by an algebraic grouping operator.  The core idea of physical optimization is to cover a given algebraic plan with patterns of available physical operators while fulfilling the pre-conditions mentioned in the former sections.  %Two different example coverings, including one covering applying a HBGJ among other fused physical operators, are shown in \autoref{fig:example-covering}.
-The idea to apply such a tree covering with certain conditions was inspired by the \emph{instruction selection problem} which is well-known in the compiler construction community~\cite{pattern_matching_in_trees, optimal_code_generation_for_expr_trees, code_generation_using_tree_matching_and_dp}.
+\revisionremove{
+    The idea to apply such a tree covering with certain conditions was inspired by the \emph{instruction selection problem} which is well-known in the compiler construction community~\mbox{\cite{pattern_matching_in_trees, optimal_code_generation_for_expr_trees, code_generation_using_tree_matching_and_dp}}.
+}
 
 %To incorporate the extension to fused operators, \autoref{alg:physical} has to be adapted only slightly.  The main issue is that the child subproblems computed in \coderef{physical-s_children} are incorrect for fused physical operators.  Revisiting the example in \autoref{fig:example-covering-fused}, the child subproblem passed as parameters to the call of \textproc{optimize\_physically\_unary} for optimizing the grouping operator would be the subproblem describing the top-level join operator, however, the HBGJ actually has two child subproblems, namely the scan on R and the other fused operator, an index scan, covering the filter and the scan on S.  Thus, the passed subproblems have to be adapted to correctly use them in the highlighted loop in \coderef{iterate_children}.  Note that due to this change the case distinction over the arity of an operator does no longer depend on the algebraic operator but on the physical operator (in our example the unary algebraic grouping operator is covered with the binary physical HBGJ).
 
 As stated in \autoref{sec:impl-holistic}, we only locally optimize nested query graphs due to the recursion.  However, as long as there are no fused physical operators breaking this ``barrier'', \eg a fused operator covering first a grouping and afterward a join, the local optimum coincides with the global optimum as we still return the entire post-condition to QEP and cost mapping in the recursion step (\coderef{holistic-ret_map} in \autoref{alg:holistic}).  To the best of our knowledge, no current database system implements such a fused physical operator as a grouping will never appear before a join without nesting the query graph.  Additionally, future work could try to resolve this issue by extending the post-conditions.  For example, we could add an available hash table to the post-condition and reuse it in a later join which basically simulates the aforementioned fused operator.
 
 %\begin{figure}
-%	\centering
-%	\begin{subfigure}[b]{.5\columnwidth}
-%		\centering
-%		\small
-%		\begin{tikzpicture}[
-%			sibling distance=.5cm, level distance=1cm,
-%			edge from parent/.style={draw, line width=.6pt}
-%		]
-%			\Tree
-%			[.\node (G) {\grouping};
-%				[.\node (J) {\join};
-%					[.\node (R) {R}; ]
-%					[.\node (F) {\filter};
-%						[.\node (S) {S}; ]
-%					]
-%				]
-%			]
-%			\begin{pgfonlayer}{bg}
-%				\node[draw, circle, inner sep=.3cm, fill=blue!30!white] at (G) {};
-%				\node[draw, circle, inner sep=.3cm, fill=red!30!white] at (J) {};
-%				\node[draw, circle, inner sep=.3cm, fill=green!30!white] at (R) {};
-%				\node[draw, circle, inner sep=.3cm, fill=purple!30!white] at (F) {};
-%				\node[draw, circle, inner sep=.3cm, fill=green!30!white] at (S) {};
-%			\end{pgfonlayer}
-%		\end{tikzpicture}
-%		\caption{Without fused operators.  Note that the scans on both R and S are covered with the same physical operator.}
-%		\label{fig:example-covering-singleton}
-%	\end{subfigure}
-%	\hfill
-%	\begin{subfigure}[b]{.45\columnwidth}
-%		\centering
-%		\small
-%		\begin{tikzpicture}[
-%			sibling distance=.5cm, level distance=1cm,
-%			edge from parent/.style={draw, line width=.6pt}
-%		]
-%			\Tree
-%			[.\node (G) {\grouping};
-%				[.\node (J) {\join};
-%					[.\node (R) {R}; ]
-%					[.\node (F) {\filter};
-%						[.\node (S) {S}; ]
-%					]
-%				]
-%			]
-%			\begin{pgfonlayer}{bg}
-%				\draw[halo, double=pink!30!white] (G) -- (J);
-%				\node[draw, circle, inner sep=.3cm, fill=green!30!white] at (R) {};
-%				\draw[halo, double=yellow!30!white] (F) -- (S);
-%			\end{pgfonlayer}
-%		\end{tikzpicture}
-%		\vspace*{.2cm}
-%		\caption{With fused operators. The grouping is fused with the join and the filter is fused with the scan on S.}
-%		\label{fig:example-covering-fused}
-%	\end{subfigure}
-%	\caption{Example tree coverings for an arbitrary algebraic plan.  The shapes represent patterns of physical operators.}
-%	\label{fig:example-covering}
+%   \centering
+%   \begin{subfigure}[b]{.5\columnwidth}
+%      \centering
+%      \small
+%      \begin{tikzpicture}[
+%         sibling distance=.5cm, level distance=1cm,
+%         edge from parent/.style={draw, line width=.6pt}
+%      ]
+%         \Tree
+%         [.\node (G) {\grouping};
+%            [.\node (J) {\join};
+%               [.\node (R) {R}; ]
+%               [.\node (F) {\filter};
+%                  [.\node (S) {S}; ]
+%               ]
+%            ]
+%         ]
+%         \begin{pgfonlayer}{bg}
+%            \node[draw, circle, inner sep=.3cm, fill=blue!30!white] at (G) {};
+%            \node[draw, circle, inner sep=.3cm, fill=red!30!white] at (J) {};
+%            \node[draw, circle, inner sep=.3cm, fill=green!30!white] at (R) {};
+%            \node[draw, circle, inner sep=.3cm, fill=purple!30!white] at (F) {};
+%            \node[draw, circle, inner sep=.3cm, fill=green!30!white] at (S) {};
+%         \end{pgfonlayer}
+%      \end{tikzpicture}
+%      \caption{Without fused operators.  Note that the scans on both R and S are covered with the same physical operator.}
+%      \label{fig:example-covering-singleton}
+%   \end{subfigure}
+%   \hfill
+%   \begin{subfigure}[b]{.45\columnwidth}
+%      \centering
+%      \small
+%      \begin{tikzpicture}[
+%         sibling distance=.5cm, level distance=1cm,
+%         edge from parent/.style={draw, line width=.6pt}
+%      ]
+%         \Tree
+%         [.\node (G) {\grouping};
+%            [.\node (J) {\join};
+%               [.\node (R) {R}; ]
+%               [.\node (F) {\filter};
+%                  [.\node (S) {S}; ]
+%               ]
+%            ]
+%         ]
+%         \begin{pgfonlayer}{bg}
+%            \draw[halo, double=pink!30!white] (G) -- (J);
+%            \node[draw, circle, inner sep=.3cm, fill=green!30!white] at (R) {};
+%            \draw[halo, double=yellow!30!white] (F) -- (S);
+%         \end{pgfonlayer}
+%      \end{tikzpicture}
+%      \vspace*{.2cm}
+%      \caption{With fused operators. The grouping is fused with the join and the filter is fused with the scan on S.}
+%      \label{fig:example-covering-fused}
+%   \end{subfigure}
+%   \caption{Example tree coverings for an arbitrary algebraic plan.  The shapes represent patterns of physical operators.}
+%   \label{fig:example-covering}
 %\end{figure}
 
-\subsection{Hybrid Approach: \topk}
-\label{sec:impl-topk}
-
-When comparing \split and \holistic one can make an interesting observation.  \holistic can be rephrased as two-step optimization problem as follows.  Firstly, solve algebraic optimization by computing not only the best algebraic plan but all possible join orders.  Afterward, perform the physical optimization step for all algebraic plans received.  In practice, this strategy would surely increase the optimization time as both steps are no longer incorporated, however, it hints at the application of a hybrid approach, namely \topk.
-
-\topk computes the~k algebraic plans with minimal algebraic cost before resuming with the physical optimization of all those algebraic plans.  Afterward, the QEP with the lowest physical cost is selected.  Note that to compute the~k optimal algebraic plans \wrt the algebraic cost model, the~k cheapest partial algebraic plans have to be stored for each enumerated subproblem during the algebraic optimization step.
-
-The hyperparameter~k can be chosen freely, \eg k=1 decays to be \split, whereas k=$\infty$ decays to be \holistic.  If~k is chosen large enough, \ie the join order of the globally optimal QEP is contained in the~k cheapest algebraic plans, the QEP determined by \topk coincides with the QEP determined by \holistic.  Therefore, we will mostly focus on the two extrema \split and \holistic in the following but also include \topk in parts of our evaluation.

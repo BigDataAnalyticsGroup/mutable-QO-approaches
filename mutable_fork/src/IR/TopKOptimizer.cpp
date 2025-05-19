@@ -173,6 +173,8 @@ std::vector<std::unique_ptr<Producer>> TopKOptimizer::construct_join_order(
         };
         std::vector<std::unique_ptr<Producer>> plans;
         for (auto &e : as<TopKPlanTableEntries<TopKPlanTable::k>>(*PT[s].data)) {
+            if (e.cost == std::numeric_limits<double>::infinity())
+                break; // empty entry means that no k different join orders exist
             M_insist(joins.empty());
             for (auto &J : G.joins()) joins.emplace_back(*J); // restore joins for each call of lambda
             plans.emplace_back(construct_plan_impl(s, e, construct_plan_impl));

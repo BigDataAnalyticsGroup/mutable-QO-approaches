@@ -230,6 +230,32 @@ std::pair<std::unique_ptr<MatchBase>, HolisticPlanTable> HolisticOptimizer::opti
         return { PhysOpt.extract_plan(), std::move(PT) };
     }
 
+    std::unique_ptr<Consumer> logical_plan;
+    if (Options::Get().enable_initialized_cost_based_pruning or Options::Get().enable_branch_and_bound_pruning) {
+        /*----- Apply split optimizer using GOO as plan enumerator. -----*/
+        Optimizer Opt(C.plan_enumerator(C.pool("GOO")), C.cost_function());
+        std::unique_ptr<Producer> producer = Opt(G);
+        for (auto &post_opt : C.logical_post_optimizations())
+            producer = (*post_opt.second).operator()(std::move(producer));
+        M_insist(bool(producer), "logical plan must have been computed");
+
+        if (Options::Get().benchmark)
+            logical_plan = std::make_unique<NoOpOperator>(std::cout);
+        else
+            logical_plan = std::make_unique<PrintOperator>(std::cout);
+        logical_plan->add_child(producer.release());
+
+        /*----- Perform physical optimization step of split optimizer. -----*/
+        PhysicalOptimizerImpl<ConcretePhysicalPlanTable> physical_optimizer;
+        backend_.register_operators(physical_optimizer);
+        physical_optimizer.cover(*logical_plan);
+        auto _physical_plan = physical_optimizer.extract_plan();
+
+        /*----- Initialize cost-based pruning. Use next representative cost value to rediscover optimal GOO plan. ----*/
+        const auto plan_cost = std::nextafter(_physical_plan->cost(), std::numeric_limits<double>::infinity());
+        PhysOpt.initialize_cost_based_pruning(*logical_plan, plan_cost);
+    }
+
     /*----- Initialize plan table and compute plans for data sources. -----*/
     optimize_source_plans(G, PT);
 
@@ -419,7 +445,15 @@ Subproblem HolisticOptimizer::optimize_plan(const QueryGraph &G, PhysicalOptimiz
 
             /* Physically optimize grouping. */
             PT.register_logical_plan(e, left, right, *group_by, true); // register plan in current entry to correctly compute `idx2subproblem()`
-            PhysOpt(*group_by);
+            if (Options::Get().enable_branch_and_bound_pruning) {
+                try {
+                    PhysOpt(*group_by); // enclose in try-catch since pruning might cause no new match to be found
+                } catch (no_match_found&) {
+                    /* nothing to be done */
+                }
+            } else {
+                PhysOpt(*group_by);
+            }
 
             created_log_plans_.push_back(std::move(group_by));
         }

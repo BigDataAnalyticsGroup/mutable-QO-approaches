@@ -44,6 +44,8 @@ struct TopKPlanTableEntries : PlanTableEntryData, std::array<TopKPlanTableEntry,
     TopKPlanTableEntry & worst() { return super::operator[](K - 1); }
     const TopKPlanTableEntry & worst() const { return super::operator[](K - 1); }
 
+    bool empty() const { return best().cost == std::numeric_limits<double>::infinity(); }
+
     void push_and_heapify(double cost, Subproblem left, Subproblem right, TopKPlanTableEntry *left_entry = nullptr,
                           TopKPlanTableEntry *right_entry = nullptr)
     {

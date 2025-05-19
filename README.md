@@ -63,6 +63,7 @@ The following files inside the **mutable_fork** repository were _modified_:
 
 * [include/mutable/IR/Operator.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/Operator.hpp)
 * [include/mutable/IR/Optimizer.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/Optimizer.hpp)
+* [include/mutable/IR/Condition.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/Condition.hpp)
 * [include/mutable/IR/PhysicalOptimizer.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/PhysicalOptimizer.hpp)
 * [include/mutable/IR/PlanEnumerator.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/PlanEnumerator.hpp)
 * [include/mutable/IR/PlanTable.hpp](https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/blob/submission/mutable_fork/include/mutable/IR/PlanTable.hpp)

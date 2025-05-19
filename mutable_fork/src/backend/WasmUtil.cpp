@@ -5,6 +5,7 @@
 #include "mutable/util/macro.hpp"
 #include <mutable/util/concepts.hpp>
 #include <optional>
+#include <regex>
 #include <tuple>
 
 
@@ -357,6 +358,24 @@ void ExprCompiler::operator()(const ast::BinaryExpr &e)
             M_insist(CodeGenContext::Get().num_simd_lanes() == 1, "invalid number of SIMD lanes");
             (*this)(*e.lhs);
             NChar str = get<NChar>();
+            if (auto static_pattern = cast<ast::Constant>(e.rhs.get())) { // check whether specialization is applicable
+                auto pattern = Catalog::Get().pool(
+                    interpret(*static_pattern->tok.text.assert_not_none()) // interpret pattern to handle escaped chars
+                );
+                if (std::regex_match(*pattern, std::regex("%[^_%\\\\]+%"))) { // contains expression
+                    set(like_contains(str, pattern));
+                    break;
+                }
+                if (std::regex_match(*pattern, std::regex("[^_%\\\\]+%"))) { // prefix expression
+                    set(like_prefix(str, pattern));
+                    break;
+                }
+                if (std::regex_match(*pattern, std::regex("%[^_%\\\\]+"))) { // suffix expression
+                    set(like_suffix(str, pattern));
+                    break;
+                }
+            }
+            /* no specialization applicable, fallback to general dynamic programming approach */
             (*this)(*e.rhs);
             NChar pattern = get<NChar>();
             set(like(str, pattern));
@@ -3079,7 +3098,7 @@ template struct m::wasm::buffer_swap_proxy_t<true>;
  * string comparison
  *====================================================================================================================*/
 
-_I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
+_I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len, bool reverse)
 {
     static thread_local struct {} _; // unique caller handle
     struct data_t : GarbageCollectedData
@@ -3093,7 +3112,7 @@ _I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
     };
     auto &d = Module::Get().add_garbage_collected_data<data_t>(&_); // garbage collect the `data_t` instance
 
-    auto strncmp_non_null = [&d, &_left, &_right](Ptr<Charx1> left, Ptr<Charx1> right, U32x1 len) -> I32x1 {
+    auto strncmp_non_null = [&d, &_left, &_right, &reverse](Ptr<Charx1> left, Ptr<Charx1> right, U32x1 len) -> I32x1 {
         Wasm_insist(left.clone().not_null(), "left operand must not be NULL");
         Wasm_insist(right.clone().not_null(), "right operand must not be NULL");
         Wasm_insist(len.clone() != 0U, "length to compare must not be 0");
@@ -3104,7 +3123,7 @@ _I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
             auto left_gt_right = *left.clone() > *right.clone();
             return left_gt_right.to<int32_t>() - (*left < *right).to<int32_t>();
         } else {
-            if (_left.guarantees_terminating_nul() and _right.guarantees_terminating_nul()) {
+            if (_left.guarantees_terminating_nul() and _right.guarantees_terminating_nul() and not reverse) { // reverse needs in-bounds checks
                 if (not d.strncmp_terminating_nul) {
                     /*----- Create function to compute the result for non-nullptr arguments character-wise. -----*/
                     FUNCTION(strncmp_terminating_nul, data_t::fn_t)
@@ -3158,16 +3177,41 @@ _I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
 
                         const auto len_ty_left  = PARAMETER(0);
                         const auto len_ty_right = PARAMETER(1);
-                        auto left  = PARAMETER(2);
-                        auto right = PARAMETER(3);
+                        Var<Ptr<Charx1>> left(PARAMETER(2));
+                        Var<Ptr<Charx1>> right(PARAMETER(3));
                         const auto len = PARAMETER(4);
 
                         Var<I32x1> result; // always set here
 
                         I32x1 len_left  = Select(len < len_ty_left,  len, len_ty_left) .make_signed();
                         I32x1 len_right = Select(len < len_ty_right, len, len_ty_right).make_signed();
-                        Var<Ptr<Charx1>> end_left (left  + len_left);
-                        Var<Ptr<Charx1>> end_right(right + len_right);
+                        Var<Ptr<Charx1>> end_left, end_right;
+
+                        if (not reverse) {
+                            /* Set end variables according to theoretical length. */
+                            end_left  = left  + len_left;
+                            end_right = right + len_right;
+                        } else {
+                            /* Set end variables to first found NUL byte without exceeding the theoretical length. */
+                            end_left = left;
+                            WHILE(*end_left != 0 and end_left != left + len_left) {
+                                end_left += 1;
+                            }
+                            end_right = right;
+                            WHILE(*end_right != 0 and end_right != right + len_right) {
+                                end_right += 1;
+                            }
+
+                            /* Swap variable for current position with the one for end position to iterate reversed. */
+                            swap(left,  end_left);
+                            swap(right, end_right);
+
+                            /* Resolve off-by-one errors created by swapping variables. */
+                            left -= 1;
+                            right -= 1;
+                            end_left -= 1;
+                            end_right -= 1;
+                        }
 
                         LOOP() {
                             /* Check whether one side is shorter than the other. Load next character with in-bounds
@@ -3190,8 +3234,8 @@ _I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
                             BREAK(val_left == 0); // reached end of identical strings
 
                             /* Advance to next character. */
-                            left += 1;
-                            right += 1;
+                            left  += reverse ? -1 : 1;
+                            right += reverse ? -1 : 1;
                             CONTINUE();
                         }
 
@@ -3222,17 +3266,17 @@ _I32x1 m::wasm::strncmp(NChar _left, NChar _right, U32x1 len)
     }
 }
 
-_I32x1 m::wasm::strcmp(NChar left, NChar right)
+_I32x1 m::wasm::strcmp(NChar left, NChar right, bool reverse)
 {
     /* Delegate to `strncmp` with length set to minimum of both string lengths **plus** 1 since we need to check if
      * one string is a prefix of the other, i.e. all of its characters are equal but it is shorter than the other. */
     U32x1 len(std::min<uint32_t>(left.length(), right.length()) + 1U);
-    return strncmp(left, right, len);
+    return strncmp(left, right, len, reverse);
 }
 
-_Boolx1 m::wasm::strncmp(NChar left, NChar right, U32x1 len, cmp_op op)
+_Boolx1 m::wasm::strncmp(NChar left, NChar right, U32x1 len, cmp_op op, bool reverse)
 {
-    _I32x1 res = strncmp(left, right, len);
+    _I32x1 res = strncmp(left, right, len, reverse);
 
     switch (op) {
         case EQ: return res == 0;
@@ -3244,9 +3288,9 @@ _Boolx1 m::wasm::strncmp(NChar left, NChar right, U32x1 len, cmp_op op)
     }
 }
 
-_Boolx1 m::wasm::strcmp(NChar left, NChar right, cmp_op op)
+_Boolx1 m::wasm::strcmp(NChar left, NChar right, cmp_op op, bool reverse)
 {
-    _I32x1 res = strcmp(left, right);
+    _I32x1 res = strcmp(left, right, reverse);
 
     switch (op) {
         case EQ: return res == 0;
@@ -3493,6 +3537,155 @@ _Boolx1 m::wasm::like(NChar _str, NChar _pattern, const char escape_char)
         const Var<Boolx1> result(like_non_null(_str, _pattern)); // to prevent duplicated computation due to `clone()`
         return _Boolx1(result);
     }
+}
+
+_Boolx1 m::wasm::like_contains(NChar _str, const ThreadSafePooledString &_pattern)
+{
+    static thread_local struct {} _; // unique caller handle
+    struct data_t : GarbageCollectedData
+    {
+        public:
+        ///> one function per static pattern
+        std::unordered_map<ThreadSafePooledString, FunctionProxy<bool(int32_t, char*)>> contains_map;
+
+        data_t(GarbageCollectedData &&d) : GarbageCollectedData(std::move(d)) { }
+    };
+    auto &d = Module::Get().add_garbage_collected_data<data_t>(&_); // garbage collect the `data_t` instance
+
+    M_insist(std::regex_match(*_pattern, std::regex("%[^_%\\\\]+%")), "invalid contains pattern");
+
+    if (_str.length() == 0) {
+        _str.discard();
+        return _Boolx1(false);
+    }
+
+    auto contains_non_null = [&d, &_str, &_pattern](Ptr<Charx1> str) -> Boolx1 {
+        Wasm_insist(str.clone().not_null(), "string operand must not be NULL");
+
+        auto it = d.contains_map.find(_pattern);
+        if (it == d.contains_map.end()) {
+            /*----- Create function to compute the result. -----*/
+            FUNCTION(contains, bool(int32_t, char*))
+            {
+                auto S = CodeGenContext::Get().scoped_environment(); // create scoped environment for this function
+
+                const auto len_ty_str = PARAMETER(0);
+                auto val_str = PARAMETER(1);
+
+                /*----- Copy pattern without enclosing `%` to make it accessible with runtime offset. -----*/
+                const int64_t len_pattern = strlen(*_pattern) - 2; // minus 2 due to enclosing `%`
+                auto pattern = Module::Allocator().raw_malloc<char>(len_pattern);
+                for (std::size_t i = 0; i < len_pattern; ++i)
+                    pattern[i] = (*_pattern)[i + 1]; // access _pattern with offset +1 due to starting `%`
+
+                /*----- Precompute prefix table. -----*/
+                auto tbl = Module::Allocator().raw_malloc<int64_t>(len_pattern + 1);
+                int64_t len_prefix = -1;
+
+                tbl[0] = len_prefix;
+                for (std::size_t i = 1; i < len_pattern + 1; ++i) {
+                    while (len_prefix >= 0 and pattern[len_prefix] != pattern[i - 1])
+                        len_prefix = tbl[len_prefix];
+                    ++len_prefix;
+                    tbl[i] = len_prefix;
+                }
+
+                /*----- Search pattern in string. -----*/
+                const Var<Ptr<Charx1>> end_str(val_str + len_ty_str);
+                Var<I64x1> pos_pattern(0);
+                WHILE (val_str < end_str and *val_str != '\0') {
+                    WHILE(*val_str != *(Ptr<Charx1>(pattern) + pos_pattern)) {
+                        Wasm_insist(pos_pattern < len_pattern + 1);
+                        pos_pattern = *(Ptr<I64x1>(tbl) + pos_pattern);
+                        IF (pos_pattern < 0) {
+                            BREAK();
+                        };
+                    }
+                    val_str += 1;
+                    pos_pattern += 1;
+                    IF (pos_pattern == len_pattern) {
+                        RETURN(true);
+                    };
+                }
+                RETURN(false);
+            }
+            it = d.contains_map.emplace_hint(it, _pattern, std::move(contains));
+        }
+
+        /*----- Call contains function. ------*/
+        M_insist(it != d.contains_map.end());
+        return (it->second)(_str.length(), str);
+    };
+
+    if (_str.can_be_null()) {
+        auto [_val_str, is_null_str] = _str.split();
+        Ptr<Charx1> val_str(_val_str); // since structured bindings cannot be used in lambda capture
+
+        _Var<Boolx1> result; // always set here
+        IF (is_null_str) {
+            result = _Boolx1::Null();
+        } ELSE {
+            result = contains_non_null(val_str);
+        };
+        return result;
+    } else {
+        const Var<Boolx1> result(contains_non_null(_str)); // to prevent duplicated computation due to `clone()`
+        return _Boolx1(result);
+    }
+}
+
+_Boolx1 m::wasm::like_prefix(NChar str, const ThreadSafePooledString &pattern)
+{
+    M_insist(std::regex_match(*pattern, std::regex("[^_%\\\\]+%")), "invalid prefix pattern");
+
+    /*----- Create lower bound. -----*/
+    const int32_t len_pattern = strlen(*pattern) - 1; // minus 1 due to ending `%`
+    auto _lower_bound = Module::Allocator().raw_malloc<char>(len_pattern + 1);
+    for (std::size_t i = 0; i < len_pattern; ++i)
+        _lower_bound[i] = (*pattern)[i];
+    _lower_bound[len_pattern] = '\0';
+    NChar lower_bound(Ptr<Charx1>(_lower_bound), false, len_pattern, true);
+
+    /*----- Create upper bound. -----*/
+    auto _upper_bound = Module::Allocator().raw_malloc<char>(len_pattern + 1);
+    for (std::size_t i = 0; i < len_pattern - 1; ++i)
+        _upper_bound[i] = (*pattern)[i];
+    const char last_char = (*pattern)[len_pattern - 1];
+    _upper_bound[len_pattern - 1] = last_char + 1; // increment last character for upper bound
+    _upper_bound[len_pattern] = '\0';
+    NChar upper_bound(Ptr<Charx1>(_upper_bound), false, len_pattern, true);
+
+    /*----- Compute result by checking whether given string is in created interval. -----*/
+    auto str_cpy = str.clone();
+    return strcmp(str_cpy, lower_bound, GE) and strcmp(str, upper_bound, LT);
+}
+
+_Boolx1 m::wasm::like_suffix(NChar str, const ThreadSafePooledString &pattern)
+{
+    M_insist(std::regex_match(*pattern, std::regex("%[^_%\\\\]+")), "invalid suffix pattern");
+
+    /*----- Create lower bound. -----*/
+    const int32_t len_pattern = strlen(*pattern) - 1; // minus 1 due to starting `%`
+    auto _lower_bound = Module::Allocator().raw_malloc<char>(len_pattern + 1);
+    for (std::size_t i = 0; i < len_pattern; ++i)
+        _lower_bound[i] = (*pattern)[i + 1]; // access pattern with offset +1 due to starting `%`
+    _lower_bound[len_pattern] = '\0';
+    NChar lower_bound(Ptr<Charx1>(_lower_bound), false, len_pattern, true);
+
+    /*----- Create upper bound. -----*/
+    auto _upper_bound = Module::Allocator().raw_malloc<char>(len_pattern + 1);
+    const char first_char = (*pattern)[1]; // access first character at offset 1 due to starting `%`
+    _upper_bound[0] = first_char + 1; // increment first character for upper bound
+    for (std::size_t i = 1; i < len_pattern; ++i)
+        _upper_bound[i] = (*pattern)[i + 1]; // access pattern with offset +1 due to starting `%`
+    _upper_bound[len_pattern] = '\0';
+    NChar upper_bound(Ptr<Charx1>(_upper_bound), false, len_pattern, true);
+
+    /*----- Compute result by checking whether given string is in created interval when reversed. -----*/
+    const auto max_length = std::max<uint32_t>(str.length(), len_pattern); // use maximal length due to reversed strncmp
+    auto str_cpy = str.clone();
+    return strncmp(str_cpy, lower_bound, U32x1(max_length), GE, true) and
+           strncmp(str,     upper_bound, U32x1(max_length), LT, true);
 }
 
 

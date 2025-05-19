@@ -157,19 +157,19 @@ void hook_highlighter(const std::string &context, Replxx::colors_t &colors)
 #include <mutable/tables/Keywords.tbl>
 #undef M_KEYWORD
         /* Operators */
-        { "\\(",  Replxx::Color::NORMAL},
-        { "\\)",  Replxx::Color::NORMAL},
-        { "\\~",  Replxx::Color::NORMAL},
-        { "\\+",  Replxx::Color::NORMAL},
-        { "\\-",  Replxx::Color::NORMAL},
-        { "\\*",  Replxx::Color::NORMAL},
-        { "\\/",  Replxx::Color::NORMAL},
-        { "\\%",  Replxx::Color::NORMAL},
-        { "\\.",  Replxx::Color::NORMAL},
-        { "\\=",  Replxx::Color::NORMAL},
-        { "\\!=", Replxx::Color::NORMAL},
-        { "\\<",  Replxx::Color::NORMAL},
-        { "\\>",  Replxx::Color::NORMAL},
+        { "\\(",  Replxx::Color::LIGHTGRAY},
+        { "\\)",  Replxx::Color::LIGHTGRAY},
+        { "\\~",  Replxx::Color::LIGHTGRAY},
+        { "\\+",  Replxx::Color::LIGHTGRAY},
+        { "\\-",  Replxx::Color::LIGHTGRAY},
+        { "\\*",  Replxx::Color::LIGHTGRAY},
+        { "\\/",  Replxx::Color::LIGHTGRAY},
+        { "\\%",  Replxx::Color::LIGHTGRAY},
+        { "\\.",  Replxx::Color::LIGHTGRAY},
+        { "\\=",  Replxx::Color::LIGHTGRAY},
+        { "\\!=", Replxx::Color::LIGHTGRAY},
+        { "\\<",  Replxx::Color::LIGHTGRAY},
+        { "\\>",  Replxx::Color::LIGHTGRAY},
         /* Constants */
         {"[\\-|+]{0,1}[0-9]+",          Replxx::Color::BLUE}, // integral numbers
         {"[\\-|+]{0,1}[0-9]*\\.[0-9]+", Replxx::Color::BLUE}, // fixed-point and floating-point numbers
@@ -337,6 +337,17 @@ int main(int argc, const char **argv)
             Options::Get().optimizer_type = Options::Opt_TopK;
             Options::Get().optimizer_top_k = k;
         });                                                                       /* Callback         */
+    ADD(bool, Options::Get().enable_initialized_cost_based_pruning, false,        /* Type, Var, Init  */
+        nullptr, "--enable-initialized-cost-based-pruning",                       /* Short, Long      */
+        "enable initialized cost based pruning for holistic optimization "
+        "using GOO",                                                              /* Description      */
+        [&](bool) {
+            Options::Get().enable_initialized_cost_based_pruning = true;
+        });                                                                       /* Callback         */
+    ADD(bool, Options::Get().enable_branch_and_bound_pruning, false,              /* Type, Var, Init  */
+        nullptr, "--enable-branch-and-bound-pruning",                             /* Short, Long      */
+        "enable branch-and-bound pruning for holistic optimization for TDbasic",  /* Description      */
+        [&](bool) { Options::Get().enable_branch_and_bound_pruning = true; });    /* Callback         */
     ADD(bool, Options::Get().optimizer_type, Options::Opt_auto,                   /* Type, Var, Init  */
         nullptr, "--xxx-optimizer-exhaustive",                                    /* Short, Long      */
         "use the exhaustive query optimizer, i.e. enumerating and executing "

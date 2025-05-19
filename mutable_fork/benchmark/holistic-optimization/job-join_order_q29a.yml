@@ -4,6 +4,37 @@ benchmark: job
 name: join order (q29a)
 readonly: true
 data:
+    'aka_name':
+        file: 'benchmark/job/data/aka_name.csv'
+        format: 'csv'
+        delimiter: ','
+        header: 0
+        attributes:
+            'id': 'INT NOT NULL PRIMARY KEY'
+            'person_id': 'INT NOT NULL'
+            'name': 'CHAR 100'
+            'imdb_index': 'CHAR 3'
+            'name_pcode_cf': 'CHAR 5'
+            'name_pcode_nf': 'CHAR 5'
+            'surname_pcode': 'CHAR 5'
+            'md5sum': 'CHAR 32'
+        indexes:
+            'id_aka_name':
+                attributes: 'id'
+            'person_id_aka_name':
+                attributes: 'person_id'
+            'name_aka_name':
+                attributes: 'name'
+            'imdb_index_aka_name':
+                attributes: 'imdb_index'
+            'name_pcode_cf_aka_name':
+                attributes: 'name_pcode_cf'
+            'name_pcode_nf_aka_name':
+                attributes: 'name_pcode_nf'
+            'surname_pcode_aka_name':
+                attributes: 'surname_pcode'
+            'md5sum_aka_name':
+                attributes: 'md5sum'
     'cast_info':
         file: 'benchmark/job/data/cast_info.csv'
         format: 'csv'
@@ -334,26 +365,32 @@ systems:
                     Optimization Time (algebraic): '^Compute the logical query plan:.*'
                     Optimization Time (physical): '^Compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
-            'split (PEall)':
-                args: --optimizer-split --plan-enumerator PEall
+            'top-5 (DPccp)':
+                args: --optimizer-topk 5 --plan-enumerator DPccp
                 pattern:
-                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
-                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-10 (DPccp)':
+                args: --optimizer-topk 10 --plan-enumerator DPccp
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
+            'holistic with pruning (DPccp)':
+                args: --optimizer-holistic --enable-initialized-cost-based-pruning --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
             'holistic (DPccp)':
                 args: --optimizer-holistic --plan-enumerator DPccp
                 pattern:
                     Optimization Time: '^Holistically compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
-            'holistic (PEall)':
-                args: --optimizer-holistic --plan-enumerator PEall
-                pattern:
-                    Optimization Time: '^Holistically compute the physical query plan:.*'
-                    Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+#            'auto':
+#                args: --dryrun
+#                pattern:
+#                    dummy: '^.*:.*'
         cases:
             dummy: >-
                 SELECT n.name, t.title, chn.name

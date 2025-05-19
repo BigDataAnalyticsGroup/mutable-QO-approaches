@@ -49,40 +49,66 @@ systems:
                     Optimization Time (algebraic): '^Compute the logical query plan:.*'
                     Optimization Time (physical): '^Compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+            'split (TDbasic)':
+                args: --optimizer-split --plan-enumerator TDbasic
+                pattern:
+                    Optimization Time (algebraic): '^Compute the logical query plan:.*'
+                    Optimization Time (physical): '^Compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
             'split (PEall)':
                 args: --optimizer-split --plan-enumerator PEall
                 pattern:
                     Optimization Time (algebraic): '^Compute the logical query plan:.*'
                     Optimization Time (physical): '^Compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
             'top-2 (DPccp)':
                 args: --optimizer-topk 2 --plan-enumerator DPccp
                 pattern:
                     Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
                     Optimization Time (physical): '^Compute the top-k physical query plans:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+            'top-2 (TDbasic)':
+                args: --optimizer-topk 2 --plan-enumerator TDbasic
+                pattern:
+                    Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
+                    Optimization Time (physical): '^Compute the top-k physical query plans:.*'
+                    Execution Time: '^Execute query:.*'
             'top-2 (PEall)':
                 args: --optimizer-topk 2 --plan-enumerator PEall
                 pattern:
                     Optimization Time (algebraic): '^Compute the top-k logical query plans:.*'
                     Optimization Time (physical): '^Compute the top-k physical query plans:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic with pruning (DPccp)':
+                args: --optimizer-holistic --enable-initialized-cost-based-pruning --plan-enumerator DPccp
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+            'holistic with pruning (TDbasic)':
+                args: --optimizer-holistic --enable-branch-and-bound-pruning --plan-enumerator TDbasic
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
+            'holistic with pruning (PEall)':
+                args: --optimizer-holistic --enable-initialized-cost-based-pruning --plan-enumerator PEall
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
             'holistic (DPccp)':
                 args: --optimizer-holistic --plan-enumerator DPccp
                 pattern:
                     Optimization Time: '^Holistically compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
+            'holistic (TDbasic)':
+                args: --optimizer-holistic --plan-enumerator TDbasic
+                pattern:
+                    Optimization Time: '^Holistically compute the physical query plan:.*'
+                    Execution Time: '^Execute query:.*'
             'holistic (PEall)':
                 args: --optimizer-holistic --plan-enumerator PEall
                 pattern:
                     Optimization Time: '^Holistically compute the physical query plan:.*'
                     Execution Time: '^Execute query:.*'
-                    Machine Code Execution Time: '^Execute machine code:.*'
         cases:
             1.0: >-
                 SELECT 1

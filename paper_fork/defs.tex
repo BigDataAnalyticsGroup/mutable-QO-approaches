@@ -16,7 +16,7 @@
 
 \newcommand{\ie}{i.e.,~}
 \newcommand{\eg}{e.g.,~}
-\renewcommand{\st}{s.t.~}
+\newcommand{\sut}{s.t.~}
 \newcommand{\wrt}{w.r.t.~}
 
 \newcommand{\join}{\Bowtie\ }
@@ -32,11 +32,14 @@
 
 \renewcommand{\split}{\textsc{split}\xspace}
 \newcommand{\holistic}{\textsc{holistic}\xspace}
+\newcommand{\holisticpruned}{$\textsc{holistic}_\textsc{opt}$\xspace}
 \newcommand{\topk}{\textsc{top-k}\xspace}
 \newcommand{\topkconfig}[1]{\textsc{top-#1}\xspace}
+\newcommand{\topksimulated}{$\textsc{top-k}_\textsc{sim}$\xspace}
 
 \newcommand{\Cout}{$C_\textit{out}$\xspace}
 \newcommand{\DPccp}{$\textit{DP}_\textit{ccp}$\xspace}
+\newcommand{\TDbasic}{$\textit{TD}_\textit{basic}$\xspace}
 \newcommand{\PEall}{$\textit{PE}_\textit{all}$\xspace}
 \xspaceremoveexception{-}
 
@@ -220,7 +223,7 @@
 \pgfsetlayers{bg,main}
 
 \tikzset{
-	halo/.style={line join=round, double, line cap=round, double distance=#1, shorten >=-#1/4, shorten <=-#1/4},
+    halo/.style={line join=round, double, line cap=round, double distance=#1, shorten >=-#1/4, shorten <=-#1/4},
     halo/.default=.8cm
 }
 
@@ -228,7 +231,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fonts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \makeatletter
     \newcommand{\showfont}{
         \begin{itemize}
@@ -240,3 +242,14 @@
         \end{itemize}
     }
 \makeatother
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Revision
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\colorlet{c_revisionadd}{blue}
+\colorlet{c_revisionrewrite}{blue}
+\newcommand{\revisionadd}[1]{{\color{c_revisionadd}#1}}
+\newcommand{\revisionrewrite}[1]{{\color{c_revisionrewrite}#1}}
+\newcommand{\revisionremove}[1]{}
+

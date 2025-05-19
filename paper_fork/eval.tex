@@ -1,136 +1,147 @@
+\begin{figure*}
+    \includegraphics{/mutable/paper/fig/optimization.pdf}
+    \vspace{-.5cm}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{Optimization times for the different approaches when varying the query graph shape, the number of base relations, and the applied join enumeration algorithm.}
+    \label{fig:optimization_time-overview}
+    \vspace*{-7pt}
+\end{figure*}
+
 \section{Evaluation}
 \label{sec:eval}
 
-In this section, we want to experimentally evaluate and compare the three optimization approaches \split, \holistic, and \topk.  In general, we try to answer the following research questions (RQs).
+In this section, we want to experimentally evaluate and compare the \revisionadd{four} \revisionremove{optimization }approaches \split, \holistic, \revisionadd{\holisticpruned,} and \topk.  In general, we try to answer the following research questions (RQs).
 \begin{enumerate}[label=(RQ \arabic*)]
-	\item How much overhead does \holistic or rather \topk induce compared to \split?  How does the query shape and size influence the optimization time? (\autoref{sec:eval-opt_time})
-	\item Are there scenarios where \holistic or rather \topk find better QEPs than \split \wrt to the given cost model?  When does \holistic outperform \split \wrt end-to-end performance?  (\autoref{sec:eval-microbenchmarks})
-	\item How can these scenarios be detected? (\autoref{sec:eval-guideline})
-	\item Do the aforementioned scenarios occur in common benchmarks and datasets?  How do the three approaches perform there? (\autoref{sec:eval-real_world_benchmarks})
+    \item How much overhead does \holistic, \revisionadd{\holisticpruned,} or \revisionremove{rather} \topk induce compared to \split?  How does the query shape and size influence the optimization time? (\autoref{sec:eval-opt_time})
+    \item Are there scenarios where \holistic or rather \topk find better QEPs than \split~\revisionrewrite{\wrt the} given cost model?  When does \revisionrewrite{these approaches} outperform \split \wrt end-to-end performance?  (\autoref{sec:eval-microbenchmarks})
+    \item Do these scenarios occur in common benchmarks and data-sets?  How do the \revisionadd{four} approaches perform\revisionremove{ there}? (\autoref{sec:eval-real_world_benchmarks})
+    \item How can the aforementioned scenarios be detected? (\autoref{sec:eval-guideline})
 \end{enumerate}
-Therefore, we begin by investigating the optimization time of all approaches under varying query graph structures and join enumeration algorithms.  Afterward, we provide three microbenchmarks showcasing that \holistic is able to yield better QEPs than \split and that \topk is able to recover these QEPs if the hyperparameter~k is chosen large enough.  Furthermore, we derive a simple guideline describing when to use which optimization approach for a given query graph to achieve best overall performance.  Later, we also survey the TPC-H, JOB, and CEB benchmarks to verify our results.
+Therefore, we begin by investigating the optimization time of all approaches under varying query graph structures and join enumeration algorithms.  Afterward, we provide three microbenchmarks showcasing that \holistic is able to yield better QEPs than \split and that \topk is able to recover these QEPs if the hyperparameter~k is chosen large enough.  Additionally, we also survey the TPC-H, JOB, and CEB benchmarks to verify our results.  Lastly, we derive a simple guideline describing when to use which optimization approach for a given query graph to achieve best overall performance.
 
 \subsection{Experimental Setup}
 \label{sec:eval-setup}
 
-We implemented all three optimization approaches in \mutable~\cite{mutable_demo,mutable_website}, a main-memory database system currently developed in our group.  All experiments are conducted using a columnar data layout and our just-in-time compiling push-based execution backend~\cite{jit_compilation}.
+We implemented all \revisionadd{four} optimization approaches in \mutable~\cite{mutable_demo,mutable_website}, a main-memory database system currently developed in our group.  All experiments are conducted using a columnar data layout and our just-in-time compiling push-based execution backend~\cite{jit_compilation}.
 
-We run all our experiments on a Linux machine with an Intel$^\text{\textregistered}$ Xeon$^\text{\textregistered}$ CPU E5-2620 v4 (2.10 GHz, 20 MiB L3) and 4x8 GiB DDR4 RAM.  Since \mutable does not yet support multi-threading, all queries run on a single core.  All data accessed in the experiments is memory resident.   We repeat each experiment five times and report the median.  In the following, with \emph{optimization time} we exclusively refer to the time required by the optimization process as described in \autoref{sec:impl}, and with overall \emph{query execution time} we refer to the sum of optimization and running time.
+We run all our experiments on a Linux machine with an Intel$^\text{\textregistered}$ Xeon$^\text{\textregistered}$ CPU E5-2620 v4 (2.10 GHz, 20 MiB L3) and 4x8 GiB DDR4 RAM.  Since \mutable does not yet support multi-threading, all queries run on a single core.  All data accessed in the experiments is memory resident.  \revisionrewrite{To remove the influence of cardinality estimation, we inject the true cardinalities for each executed query into \mutable's cardinality estimator.}   We repeat each experiment five times and report the median.  In the following, with \emph{optimization time} we exclusively refer to the time required by the optimization process as described in \autoref{sec:impl}, and with \revisionremove{overall} \emph{query execution time} we refer to the sum of optimization and running time.
 
 The algorithms \split and \topk always assume \Cout~\cite{book_moerkotte, mutable_join_ordering} as algebraic cost model.  The physical cost model is given by Definitions~(\ref{eq:cost-scan})--(\ref{eq:cost-nlj}) and extended as follows.
 \begin{align}
-	C_\text{HBG}(x) &\coloneq 1.5 * |x| \label{eq:cost-hbg}\\
-	C_\text{HBGJ}(x,y) &\coloneq 1.5 * |x| + |y| + |x,y| \label{eq:cost-hbgj}
+    C_\text{HBG}(x) &\coloneq 1.5 * |x| \label{eq:cost-hbg}\\
+    C_\text{HBGJ}(x,y) &\coloneq 1.5 * |x| + |y| + |x,y| \label{eq:cost-hbgj}
 \end{align}
-In both cases, we omit the costs for base relations and their respective scans as they occur in every possible QEP.
+\revisionadd{Note that $|x,y|$ denotes the cardinality of the subproblem $\{x, y\}$.}  In both cases, we omit the costs for base relations and their respective scans as they occur in every possible QEP.
 
 \subsection{Optimization Time}
 \label{sec:eval-opt_time}
 
-\begin{figure*}
-	\includegraphics{/mutable/paper/fig/optimization.pdf}
-	\vspace{-.4cm}
-	\caption{Optimization times for the different approaches when varying the query graph shape, the number of base relations, and the applied join enumeration algorithm.}
-	\label{fig:optimization_time-overview}
-\end{figure*}
+In this section, we try to answer RQ~1 by investigating the optimization time required by \split, \holistic, \revisionadd{\holisticpruned,} and \topk. We conduct one experiment per query graph shape, \ie chain, cycle, star, and clique, in which we vary the size of the query graph, \ie the number of base relations, and measure the optimization time needed to find its optimal QEP using either \split, \topk with k=5, \topk with k=10, \revisionadd{\holisticpruned,} or \holistic.  We also vary the join enumeration algorithm since \DPccp is the state-of-the-art algorithm\revisionadd{, \TDbasic enables branch-and-bound pruning,} and \PEall\ makes \holistic truly holistic by also considering Cartesian products.  Note that we denote for example \topk with k set to 5 as \topkconfig{5}.
 
-\begin{figure*}
-	\includegraphics{/mutable/paper/fig/optimization_split.pdf}
-	\vspace{-.4cm}
-	\caption{Closer look into the optimization times of \split when varying the query graph shape, the number of base relations, and the applied join enumeration algorithm.}
-	\label{fig:optimization_time-split}
-\end{figure*}
+\autoref{fig:optimization_time-overview} shows the results of this experiment.  The key observation is that the optimization time of all approaches grows exponentially with the number of base relations due to the linear grow on a logarithmic scale, as stated in \autoref{sec:time-complexity}.  We are also able to observe the significant overhead induced by computing the base relation permutations during \holistic.  For example, holistically optimizing a query graph containing 10 base relations requires up to \revisionrewrite{1000s} whereas \split always finds its local optimum in under \revisionrewrite{10ms}.  The \topk configurations form a middle ground between the two extrema \split and \holistic and its optimization time increases the larger k is chosen.  For large queries, \topk performs significantly better than \holistic, especially when applying \PEall.  For small queries, \topk enumerates all possible join orders similar to \holistic, however, without incorporating both optimization steps into a single one.  Thus, we observe an overhead of \topk compared to \holistic (see \autoref{fig:overview-solution_space}).  \revisionadd{The potential gain\footnote{\revisionadd{We defined the cardinalities \sut they favor pruning to the maximum, but do not influence the enumeration of join orders and QEPs for approaches other than \holisticpruned.}} of applying pruning is clearly visible when comparing \holisticpruned with \holistic, especially for \PEall where many Cartesian products can be directly pruned.  Interestingly, there is no improvement for star queries when applying \DPccp or \TDbasic since joining dimension tables in a suboptimal order with the fact table is not costly enough to prune due to the output cardinality of each subproblem being bounded by the size of the fact table.}  Furthermore, our results confirm the efficiency of \DPccp\ \revisionadd{and \TDbasic} compared to \PEall, especially for \holistic as significantly less physical plans have to be enumerated \revisionrewrite{without} Cartesian products.  This effect is most visible for sparse query graph shapes like chain or cycle and decreases with more dense query graph shapes like star until there is no difference visible for a fully connected query graph, \ie a clique.  Actually, for cliques, \DPccp\ \revisionadd{and \TDbasic} \revisionrewrite{perform} slightly worse since \revisionrewrite{they enumerate} the same join orders as \PEall but with a more complex computation.
 
-In this section, we try to answer RQ~1 by investigating the optimization time required by \split, \holistic, and \topk. We conduct one experiment per query graph shape, \ie chain, cycle, star, and clique, in which we vary the size of the query graph, \ie the number of base relations, and measure the optimization time needed to find its optimal QEP using either \split, \topk with k=5, \topk with k=10, or \holistic.  We also vary the join enumeration algorithm since \DPccp is the state-of-the-art algorithm and \PEall\ makes \holistic truly holistic by also considering Cartesian products.  Note that we denote for example \topk with k set to 5 as \topkconfig{5}.
-
-\autoref{fig:optimization_time-overview} shows the results of this experiment.  The main observation is that the optimization time of all approaches grows exponentially with the number of base relations due to the linear grow on a logarithmic scale, as stated in \autoref{sec:time-complexity}.  However, we are also able to observe the significant overhead induced by computing the base relation permutations during \holistic.  For example, holistically optimizing a query graph containing 10 base relations requires up to 10s whereas \split always finds its local optimum in under 5.5ms.  The \topk configurations form a middle ground between the two extrema \split and \holistic and its optimization time increases the larger k is chosen.  For large queries, \topk performs significantly better than \holistic, especially when applying \PEall.  For small queries, \topk enumerates all possible join orders similar to \holistic, however, without incorporating both optimization steps into a single one.  Thus, we observe an overhead of \topk compared to \holistic (see \autoref{fig:overview-solution_space}).  Furthermore, our results confirm the efficiency of \DPccp compared to \PEall, especially for \holistic as significantly less physical plans have to be enumerated when ignoring Cartesian products.  Of course, this effect is most visible for sparse query graph shapes like chain or cycle and decreases with more dense query graph shapes like star until there is no difference visible for a fully connected query graph, \ie a clique.  Actually, for cliques, \DPccp performs slightly worse since it enumerates the same join orders as \PEall but with a more complex computation.
-
-This induced overhead can be also seen in the measurements for a clique in \autoref{fig:optimization_time-split} which examines the effort spend for the algebraic and physical optimization step of \split, respectively.  In contrast, the complexity of the physical optimization step is independent from the chosen join enumeration algorithm but grows exponential \wrt the number of base relations as already explained in \autoref{sec:time-complexity}.
+\revisionremove{This induced overhead can be also seen in the measurements for a clique in \mbox{\autoref{fig:optimization_time-split}} which examines the effort \mbox{\revisionrewrite{spent}} for the algebraic and physical optimization step of \split, respectively. In contrast, the complexity of the physical optimization step is independent from the chosen join enumeration algorithm but grows \mbox{\revisionrewrite{exponentially}} \wrt the number of base relations as already explained in \mbox{\autoref{sec:time-complexity}}.}
 
 \subsection{End-To-End Microbenchmarks}
 \label{sec:eval-microbenchmarks}
 
 With three end-to-end microbenchmarks, we showcase that \holistic is able to find a QEP that is superior \wrt estimated cost to the QEP found by applying \split.  However, as shown in the last section, \holistic is computationally more expensive and thus takes more time to find the QEP.  Therefore, there is a trade-off between optimization time and running time.
 
-We also optimize our microbenchmarks utilizing \topkconfig{2}.  This optimization then finds the same QEPs as \holistic.  As the optimization times are comparatively low in these experiments, the end-to-end performances of \topk and \holistic match, thus, we omit \topk in the remainder of this section.
+We also optimize our microbenchmarks utilizing \topkconfig{2} \revisionadd{and \holisticpruned}\revisionrewrite{, which find} the same QEPs as \holistic.  As the optimization times are \revisionrewrite{mostly negligible} in these experiments\revisionrewrite{, \ie below 3ms}, \revisionrewrite{ there is no real difference between \topkconfig{2}, \holisticpruned, and \holistic.  Moreover, as the choice of plan enumerator does not influence the resutling QEP, we only state the mean of utilizing \DPccp, \TDbasic, and \PEall} in the remainder of this section.
 
-All microbenchmarks run on a synthetic data set.  Primary keys as well as foreign keys in the base relations are represented as 4-byte integer values.  The data is drawn uniformly at random \st it fulfills the desired cardinalities specified in each microbenchmark.
+All microbenchmarks run on a synthetic dataset.  Primary keys as well as foreign keys in the base relations are represented as 4-byte integer values.  The data is drawn uniformly at random \sut it fulfills the desired cardinalities specified in each microbenchmark.
 
 \textbf{Exploiting Sortedness.}
-In the first microbenchmark, we aim at reusing existing sortings.  We consider a simple select-project-join query shown in \autoref{fig:microbenchmark_sortedness-query}.  The query consists of a total of two explicit joins forming a query graph structure commonly known as chain shape.  In this microbenchmark, base relation R represents some entity, \eg students, S represents a subclass of R, \eg PhD students, and T represents some relationship with R, \eg attending courses.  We may assume R and S to be presorted on their primary keys R.id and S.rid, respectively.  Moreover, the join between S and T as well as its specified cardinality may occur in practice as not all PhD students have to attend courses anymore.
-
-\begin{figure}
-	\centering
-	\begin{subfigure}[b]{\columnwidth}
-		\begin{lstlisting}[language=sql]
-			SELECT *
-			FROM R, S, T
-			WHERE R.id = S.rid AND S.rid = T.rid;
-		\end{lstlisting}
-		\vspace{-.1cm}
-		\caption{SQL query inducing sortedness exploitation.}
-		\label{fig:microbenchmark_sortedness-query}
-	\end{subfigure}
-	\begin{subfigure}[b]{.45\columnwidth}
-		\vspace{.3cm}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.\SHJ{}
-					\edge node[xshift=-.35cm] {$10^6$}; [.\SHJ{}
-						\edge node[xshift=-.65cm] {$1.1*10^6$}; [.\scan{S} ]
-						\edge node[xshift=.35cm] {$10^7$}; [.\scan{T} ]
-					]
-					\edge node[xshift=.35cm] {$10^8$}; [.\scan{R} ]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^6$,\ cost\textsubscript{phys}=$1.1315*10^8$};
-		\end{tikzpicture}
-		\caption{Applying \split.}
-		\label{fig:microbenchmark_sortedness-plan-split}
-	\end{subfigure}
-	\hfill
-	\begin{subfigure}[b]{.5\columnwidth}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.\SHJ{}
-					\edge node[xshift=-.65cm] {$1.1*10^6$}; [.\MJ{}
-						\edge node[xshift=-.35cm] {$10^8$}; [.\scan{R} ]
-						\edge node[xshift=.65cm] {$1.1*10^6$}; [.\scan{S} ]
-					]
-					\edge node[xshift=.4cm] {$10^7$}; [.\scan{T} ]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$1.1*10^6$,\ cost\textsubscript{phys}=$1.1275*10^8$};
-		\end{tikzpicture}
-		\caption{Applying \holistic.}
-		\label{fig:microbenchmark_sortedness-plan-holistic}
-	\end{subfigure}
-	\caption{Microbenchmark exploiting sortedness.  The QEPs are determined independent from the choice of join enumeration algorithm.  Edges of the plans are annotated with the respective cardinalities for sf=1.}
-	\label{fig:microbenchmark_sortedness}
-\end{figure}
+In the first microbenchmark, we aim at reusing existing sortings.  We consider a simple select-project-join query shown in \autoref{fig:microbenchmark_sortedness-query}.  The query consists of a total of two explicit joins forming a query graph \revisionremove{structure }commonly known as chain shape.  In this microbenchmark, base relation R represents\revisionremove{ some entity}, \eg students, S\revisionremove{ represents} a subclass of R, \eg PhD students, and T\revisionremove{ represents} some relationship with~R, \eg attending courses.  We may assume R and S to be presorted on their primary keys R.id and S.rid, respectively.  Moreover, the join between S and T as well as its specified cardinality may occur in practice as not all PhD students have to attend courses anymore.
 
 On the one hand, \holistic tries to exploit existing sortings by executing a MJ similar to our running example in \autoref{fig:example}.  On the other hand, \split does not consider physical output properties during the algebraic optimization step and chooses another join order disabling the application of a MJ in the subsequent physical optimization step.  Both found QEPs are depicted in \autoref{fig:microbenchmark_sortedness}.
 
+\autoref{fig:microbenchmark_sortedness-results} shows the \revisionrewrite{query} execution \revisionrewrite{times} for the final QEPs for varying scale factors~(sf) and \revisionrewrite{approaches} utilized.  We observe that \revisionremove{the join algorithm does not significantly influence the \mbox{\revisionrewrite{query}} execution time as the same QEPs are computed and the optimization time is negligible here. Furthermore,} the holistically optimized QEP dominates the \revisionrewrite{one chosen} by \split for all scale factors with an increasing speedup from \revisionrewrite{3.2x} to \revisionrewrite{11.1x}.
+
 \begin{figure}
-	\includegraphics{/mutable/paper/fig/microbenchmark_sortedness.pdf}
-	\vspace{-.7cm}
-	\caption{Overall execution times for the final QEPs shown in \autoref{fig:microbenchmark_sortedness} when varying the scale factor and the applied join enumeration algorithm.}
-	\label{fig:microbenchmark_sortedness-results}
+    \centering
+    \begin{subfigure}[b]{\columnwidth}
+       \begin{lstlisting}[language=sql]
+          SELECT *
+          FROM R, S, T
+          WHERE R.id = S.rid AND S.rid = T.rid;
+       \end{lstlisting}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{SQL query inducing sortedness exploitation.}
+       \label{fig:microbenchmark_sortedness-query}
+    \end{subfigure}
+    \begin{subfigure}[b]{.45\columnwidth}
+       \vspace{.05cm}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.\SHJ{}
+                \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^6$}; [.\SHJ{}
+                   \edge node[xshift=-.5cm, yshift=.1cm, font=\footnotesize] {$1.1*10^6$}; [.\scan{S} ]
+                   \edge node[xshift=.3cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{T} ]
+                ]
+                \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^8$}; [.\scan{R} ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^6$,\ cost\textsubscript{phys}=$1.1315*10^8$};
+       \end{tikzpicture}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{Applying \split.}
+       \label{fig:microbenchmark_sortedness-plan-split}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{.5\columnwidth}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.\SHJ{}
+                \edge node[xshift=-.5cm, yshift=.1cm, font=\footnotesize] {$1.1*10^6$}; [.\MJ{}
+                   \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^8$}; [.\scan{R} ]
+                   \edge node[xshift=.6cm, yshift=.1cm, font=\footnotesize] {$1.1*10^6$}; [.\scan{S} ]
+                ]
+                \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{T} ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$1.1*10^6$,\ cost\textsubscript{phys}=$1.1275*10^8$};
+       \end{tikzpicture}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{Applying \holistic.}
+       \label{fig:microbenchmark_sortedness-plan-holistic}
+    \end{subfigure}
+    \vspace*{\captiongap}
+    \vspace*{\captiongap}
+    \caption{Microbenchmark exploiting sortedness.  \revisionremove{The QEPs are determined independent from the choice of join enumeration algorithm.}  \revisionrewrite{QEP edges} are annotated with the respective cardinalities for sf=1.0.}
+    \label{fig:microbenchmark_sortedness}
+    \vspace*{-7pt}
 \end{figure}
 
-\autoref{fig:microbenchmark_sortedness-results} shows the overall execution time for the final QEPs for varying scale factors and join enumeration algorithms utilized.  We can observe that the join algorithm does not significantly influence the overall execution time as the same QEPs are computed and the optimization time is negligible here.  Furthermore, the holistically optimized QEP dominates the QEP constructed by \split for all scale factors with an increasing speedup from 2.9x to 11.2x.
+\begin{figure}
+    \includegraphics{/mutable/paper/fig/microbenchmark_sortedness.pdf}
+    \vspace{-.9cm}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{\revisionrewrite{Query} execution times for the final QEPs shown in \autoref{fig:microbenchmark_sortedness} when varying the scale factor and the \revisionrewrite{approach}.}
+    \label{fig:microbenchmark_sortedness-results}
+    \vspace*{-7pt}
+\end{figure}
 
 \textbf{Exploiting Group-Join.}
 The second microbenchmark investigates the exploitation of fused physical operators by utilizing the query defined in \autoref{fig:microbenchmark_fused-query}.  The query induces two possible join orders and a subsequent grouping on one of the join keys.\footnote{Note that the stated query could be rewritten to a single-relation-query on the base relation S and grouping directly on S.rid as the joins with R and T do not add any information here.  However, filters on the other base relations would require the joins again.  For simplicilty, we omit these filters in this microbenchmark.}
@@ -138,233 +149,327 @@ The second microbenchmark investigates the exploitation of fused physical operat
 \holistic enables the use of a HBGJ by performing the join that does not contain the grouping key at first.  Again, \split is more restricted in the sense that the algebraic optimization step determines the other possible join order ruling out the application of a fused group-join in the subsequent physical optimization step.  Therefore, the grouping has to be executed using a separate physical operator, \ie the hash-based grouping~(HBG).  \autoref{fig:microbenchmark_fused} shows both resulting QEPs.  Note that even if no intermediate algebraic plan is constructed by \holistic, the algebraical cost would still be $2*10^7$ for the determined join order and thus the same as for \split.  So in theory, \split could have chosen this join order as well resulting in the same QEP as \holistic (we circumvented that by slighlty adapting the cardinalities).  However, \holistic will always force the favorable join order enabling the HBGJ.
 
 \begin{figure}
-	\centering
-	\begin{subfigure}[b]{\columnwidth}
-		\begin{lstlisting}[language=sql]
-			SELECT R.id, COUNT(*)
-			FROM R, S, T
-			WHERE R.id = S.rid AND S.tid = T.id
-			GROUP BY R.id;
-		\end{lstlisting}
-		\vspace{-.1cm}
-		\caption{SQL query inducing group-join exploitation.}
-		\label{fig:microbenchmark_fused-query}
-	\end{subfigure}
-	\begin{subfigure}[b]{.45\columnwidth}
-		\vspace{.3cm}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 2/.style={sibling distance=-.25cm}, level 3/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.\HBG{}
-					\edge node[xshift=-.25cm] {$10^7$}; [.\SHJ{}
-						\edge node[xshift=-.35cm] {$10^5$}; [.\scan{T} ]
-						\edge node[xshift=.35cm] {$10^7$}; [.\SHJ{}
-							\edge node[xshift=-.35cm] {$10^5$}; [.\scan{R} ]
-							\edge node[xshift=.35cm] {$10^7$}; [.\scan{S} ]
-						]
-					]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$2*10^7$,\ cost\textsubscript{phys}=$4.025*10^7$};
-		\end{tikzpicture}
-		\caption{Applying \split.}
-		\label{fig:microbenchmark_fused-plan-split}
-	\end{subfigure}
-	\hfill
-	\begin{subfigure}[b]{.5\columnwidth}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.HBGJ
-					\edge node[xshift=-.35cm] {$10^5$}; [.\scan{R} ]
-					\edge node[xshift=.35cm] {$10^7$}; [.\SHJ{}
-						\edge node[xshift=-.35cm] {$10^5$}; [.\scan{T} ]
-						\edge node[xshift=.35cm] {$10^7$}; [.\scan{S} ]
-					]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$2*10^7$,\ cost\textsubscript{phys}=$3.03*10^7$};
-		\end{tikzpicture}
-		\caption{Applying \holistic.}
-		\label{fig:microbenchmark_fused-plan-holistic}
-	\end{subfigure}
-	\caption{Microbenchmark exploiting group-join.  The QEPs are determined independent from the choice of join enumeration algorithm.  Edges of the plans are annotated with the respective cardinalities for sf=1.}
-	\label{fig:microbenchmark_fused}
+    \centering
+    \begin{subfigure}[b]{\columnwidth}
+       \begin{lstlisting}[language=sql]
+          SELECT R.id, COUNT(*)
+          FROM R, S, T
+          WHERE R.id = S.rid AND S.tid = T.id
+          GROUP BY R.id;
+       \end{lstlisting}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{SQL query inducing group-join exploitation.}
+       \label{fig:microbenchmark_fused-query}
+    \end{subfigure}
+    \begin{subfigure}[b]{.45\columnwidth}
+       \vspace{.05cm}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 2/.style={sibling distance=-.25cm}, level 3/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.\HBG{}
+                \edge node[xshift=-.25cm, font=\footnotesize] {$10^7$}; [.\SHJ{}
+                   \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{T} ]
+                   \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\SHJ{}
+                      \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{R} ]
+                      \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{S} ]
+                   ]
+                ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$2*10^7$,\ cost\textsubscript{phys}=$4.025*10^7$};
+       \end{tikzpicture}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{Applying \split.}
+       \label{fig:microbenchmark_fused-plan-split}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{.5\columnwidth}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.HBGJ
+                \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{R} ]
+                \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\SHJ{}
+                   \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{T} ]
+                   \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{S} ]
+                ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$2*10^7$,\ cost\textsubscript{phys}=$3.03*10^7$};
+       \end{tikzpicture}
+       \vspace*{-2pt}
+%      \vspace*{\captiongap}
+%      \vspace*{\captiongap}
+%      \vspace*{\captiongap}
+       \caption{Applying \holistic.}
+       \label{fig:microbenchmark_fused-plan-holistic}
+    \end{subfigure}
+    \vspace*{\captiongap}
+    \vspace*{\captiongap}
+    \caption{Microbenchmark exploiting group-join.  \revisionremove{The QEPs are determined independent from the choice of join enumeration algorithm.}  \revisionrewrite{QEP edges} are annotated with the respective cardinalities for sf=1.0.}
+    \label{fig:microbenchmark_fused}
+    \vspace*{-7pt}
 \end{figure}
 
 \begin{figure}
-	\includegraphics{/mutable/paper/fig/microbenchmark_fused.pdf}
-	\vspace{-.7cm}
-	\caption{Overall execution times for the final QEPs shown in \autoref{fig:microbenchmark_fused} when varying the scale factor and the applied join enumeration algorithm.}
-	\label{fig:microbenchmark_fused-results}
+    \includegraphics{/mutable/paper/fig/microbenchmark_fused.pdf}
+    \vspace{-.9cm}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{\revisionrewrite{Query} execution times for the final QEPs shown in \autoref{fig:microbenchmark_fused} when varying the scale factor and the \revisionrewrite{approach}.}
+    \label{fig:microbenchmark_fused-results}
+    \vspace*{-7pt}
 \end{figure}
 
-We perform an experiment with the same configurations, \ie varying scale factor and different join enumeration algorithms, as for the first microbenchmark.  \autoref{fig:microbenchmark_fused-results} depicts the results.  This time, \split is on par with \holistic for small scale factors as the optimization overhead of \holistic is too high for comparatively low running times of 30ms.  However, with larger data sets, the query running time increases while the optimization time remains constant.  From scale factor 0.25 onwards, \holistic becomes increasingly superior to \split.  This indicates that the holistic QEP is again more beneficial in practice than the QEP computed by \split, however, with a smaller absolute difference than in the first microbenchmark.  However, we would always be able to find a threshold at which \holistic outperforms \split \wrt overall execution time by upscaling the data set even if the holistic QEP is only slighlty more beneficial in practice.
+We perform an experiment with the same configurations, \ie varying scale factor and \revisionrewrite{approaches}, as for the first microbenchmark.  \autoref{fig:microbenchmark_fused-results} depicts the results.  This time, \split is on par with \holistic for small scale factors as the optimization overhead of \holistic is too high for comparatively low running times of 30ms.  However, with larger datasets, the query running time increases while the optimization time remains constant.  From scale factor 0.25 onwards, \holistic becomes increasingly superior to \split.  This indicates that the holistic QEP is again more beneficial in practice than the QEP computed by \split, however, with a smaller absolute difference than in the first microbenchmark.  However, we would always be able to find a threshold at which \holistic outperforms \split \wrt \revisionrewrite{query} execution time by upscaling the dataset even if the holistic QEP is only slighlty more beneficial in practice.
 
 \begin{figure}
-	\centering
-	\begin{subfigure}[b]{\columnwidth}
-		\begin{lstlisting}[language=sql]
-			SELECT *
-			FROM R, S, T
-			WHERE R.sid = S.id AND S.id = T.sid;
-		\end{lstlisting}
-		\vspace{-.1cm}
-		\caption{SQL query inducing multiple join orders.}
-		\label{fig:microbenchmark_join_order-query}
-	\end{subfigure}
-	\begin{subfigure}[b]{.45\columnwidth}
-		\vspace{.3cm}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.\SHJ{}
-					\edge node[xshift=-.35cm] {$10^4$}; [.\SHJ{}
-						\edge node[xshift=-.35cm] {$10^7$}; [.\scan{T} ]
-						\edge node[xshift=.35cm] {$10^8$}; [.\scan{S} ]
-					]
-					\edge node[xshift=.35cm] {$10^5$}; [.\scan{R} ]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^4$,\ cost\textsubscript{phys}=$1.15115*10^8$};
-		\end{tikzpicture}
-		\caption{Applying \split.}
-		\label{fig:microbenchmark_join_order-plan-split}
-	\end{subfigure}
-	\hfill
-	\begin{subfigure}[b]{.5\columnwidth}
-		\centering
-		\small
-		\begin{tikzpicture}[
-				level 1/.style={sibling distance=-.05cm}, level 2/.style={sibling distance=-.05cm},
-				edge from parent/.style={draw, line width=.6pt}
-			]
-			\node (qep) {
-				\Tree
-				[.\SHJ{}
-					\edge node[xshift=-.35cm] {$10^5$}; [.\SHJ{}
-						\edge node[xshift=-.35cm] {$10^5$}; [.\scan{R} ]
-						\edge node[xshift=.35cm] {$10^8$}; [.\scan{S} ]
-					]
-					\edge node[xshift=.35cm] {$10^7$}; [.\scan{T} ]
-				]
-			};
-			\node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^5$,\ cost\textsubscript{phys}=$1.103*10^8$};
-		\end{tikzpicture}
-		\caption{Applying \holistic.}
-		\label{fig:microbenchmark_join_order-plan-holistic}
-	\end{subfigure}
-	\caption{Microbenchmark removing algebraic cost abstraction.  The QEPs are determined independent from the choice of join enumeration algorithm.  Edges of the plans are annotated with the respective cardinalities for sf=1.}
-	\label{fig:microbenchmark_join_order}
+    \centering
+    \begin{subfigure}[b]{\columnwidth}
+       \begin{lstlisting}[language=sql]
+          SELECT *
+          FROM R, S, T
+          WHERE R.sid = S.id AND S.id = T.sid;
+       \end{lstlisting}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{SQL query inducing multiple join orders.}
+       \label{fig:microbenchmark_join_order-query}
+    \end{subfigure}
+    \begin{subfigure}[b]{.45\columnwidth}
+       \vspace{.05cm}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 1/.style={sibling distance=-.25cm}, level 2/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.\SHJ{}
+                \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^4$}; [.\SHJ{}
+                   \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{T} ]
+                   \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^8$}; [.\scan{S} ]
+                ]
+                \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{R} ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^4$,\ cost\textsubscript{phys}=$1.15115*10^8$};
+       \end{tikzpicture}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+       \caption{Applying \split.}
+       \label{fig:microbenchmark_join_order-plan-split}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{.5\columnwidth}
+       \centering
+       \small
+       \begin{tikzpicture}[
+             level distance=.75cm,
+             level 1/.style={sibling distance=-.05cm}, level 2/.style={sibling distance=-.05cm},
+             edge from parent/.style={draw, line width=.6pt}
+          ]
+          \node (qep) {
+             \Tree
+             [.\SHJ{}
+                \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\SHJ{}
+                   \edge node[xshift=-.2cm, yshift=.1cm, font=\footnotesize] {$10^5$}; [.\scan{R} ]
+                   \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^8$}; [.\scan{S} ]
+                ]
+                \edge node[xshift=.35cm, yshift=.1cm, font=\footnotesize] {$10^7$}; [.\scan{T} ]
+             ]
+          };
+          \node[below=-.1cm of qep, align=center, font=\footnotesize\bfseries] {cost\textsubscript{alg}=$10^5$,\ cost\textsubscript{phys}=$1.103*10^8$};
+       \end{tikzpicture}
+       \vspace*{-2pt}
+%      \vspace*{\captiongap}
+%      \vspace*{\captiongap}
+%      \vspace*{\captiongap}
+       \caption{Applying \holistic.}
+       \label{fig:microbenchmark_join_order-plan-holistic}
+    \end{subfigure}
+       \vspace*{\captiongap}
+       \vspace*{\captiongap}
+    \caption{Microbenchmark removing algebraic cost abstraction.  \revisionremove{The QEPs are determined independent from the choice of join enumeration algorithm.}  \revisionrewrite{QEP edges} are annotated with the respective cardinalities for sf=1.0.}
+    \label{fig:microbenchmark_join_order}
+    \vspace*{-7pt}
+\end{figure}
+
+\begin{figure}
+    \includegraphics{/mutable/paper/fig/microbenchmark_join_order.pdf}
+    \vspace{-.9cm}
+    \captionsetup{labelfont={color=c_revisionadd,bf}}
+    \caption{\revisionrewrite{Query} execution times for the final QEPs shown in \autoref{fig:microbenchmark_join_order} when varying the scale factor and the \revisionrewrite{approach}.}
+    \label{fig:microbenchmark_join_order-results}
+    \vspace*{-7pt}
 \end{figure}
 
 \textbf{Removing Algebraic Cost Abstraction.}
-In the last microbenchmark, we examine the impact of purely applying a physical cost model in \holistic in contrast to applying two different cost models, \ie first algebraic then physical, in \split.  Therefore, we again consider a simple select-project-join query shown in \autoref{fig:microbenchmark_join_order-query}, now consisting of three relations and a total of three joins including one transitively derived join between R.sid and T.sid.  Thus, multiple join orders are possible.  We do not assume any existing sorting but assume the cardinalities as given in \autoref{fig:microbenchmark_join_order}.\footnote{Note that there must be some filter on S present to achieve the cardinality of the subproblem \{S,~T\} (due to the foreign key property), however, we again omit these filters for simplicity.}
+In the last microbenchmark, we examine the impact of purely applying a physical cost model in \holistic in contrast to applying two different cost models, \ie first algebraic then physical, in \split.  Therefore, we again consider a simple select-project-join query shown in \autoref{fig:microbenchmark_join_order-query}, now consisting of three relations and a total of three joins including one transitively derived join between R.sid and T.sid.  Thus, multiple join orders are possible.  We do not assume any existing sorting but assume the cardinalities as given in \autoref{fig:microbenchmark_join_order}.\footnote{Note that there must be some filter on S \revisionremove{present }to achieve the cardinality of the subproblem \{S,~T\} (due to the foreign key property), however, we \revisionremove{again }omit these filters for simplicity.}
 
 As mentioned in \autoref{sec:eval-setup}, \split applies \Cout as algebraic cost model.  \Cout can be seen as a simplified version of the physical cost model given by Definitions~(\ref{eq:cost-scan})--(\ref{eq:cost-hbgj}).  While this abstraction accumulates the cost computation during join ordering, it also causes inaccuracy, \eg by removing the factor estimating the cost of creating a hash table.  Therefore, there are cases where \split ``oversimplifies'' which results in finding only a local optimum instead of the global optimum guaranteed to be found by \holistic.  This third microbenchmark triggers exactly such a scenario as the QEPs and costs depicted in \autoref{fig:microbenchmark_join_order} confirm.  Even if the algebraic cost are lower for the QEP found by \split, it is forced to build the hash table for the lower SHJ on one huge input (either T or S).  In contrast, \holistic ``divides'' these two huge inputs across two different joins making it possible to build both required hash tables on smaller inputs each (on R and the join result of R and S).
 
-Again, we measured the overall execution time for different scale factors and join enumeration algorithms.  The results depicted in \autoref{fig:microbenchmark_join_order-results} have similar characteristics as the first microbenchmark.  \holistic dominates \split for all scale factors, again with an increasing speedup up to 2x.
+Again, we measured the \revisionrewrite{query} execution time for different scale factors and \revisionrewrite{approaches}.  The results shown in \autoref{fig:microbenchmark_join_order-results} have similar characteristics as the first microbenchmark.  \holistic dominates \split for all scale factors with an increasing speedup up to \revisionrewrite{2.5x}.
 
-In conclusion, RQ~2 can be answered positively since we found three independent scenarios where \holistic is superior to \split, especially for larger data sets.
-
-\subsection{Optimization Guideline}
-\label{sec:eval-guideline}
-
-As seen previously, the optimization time of \split is significantly lower causing the issue of deciding whether to apply \split or \holistic to achieve the best overall execution time.  Furthermore, \topk could be applied but the hyperparameter~k has to be chosen wisely to still finding the holistic QEP while limiting the optimization effort.  In this section, we answer RQ~3 by proposing a simple guideline to decide which approach to use and how to use it, \eg whether some preprocessing is needed.
-
-\begin{figure}[!ht]
-	\includegraphics{/mutable/paper/fig/microbenchmark_join_order.pdf}
-	\vspace{-.7cm}
-	\caption{Overall execution times for the final QEPs shown in \autoref{fig:microbenchmark_join_order} when varying the scale factor and the applied join enumeration algorithm.}
-	\label{fig:microbenchmark_join_order-results}
-\end{figure}
-
-Firstly, since exploiting sortedness becomes only applicable iff a join attribute is reused, the first guideline rule is the following: If a join graph does not contain multiple joins reusing the same join attribute, use \split.
-
-Secondly, we observe that the exploitation of a fused group-join becomes only applicable iff the grouping key is also a join key in the top-level join.  Therefore, we extend our proposed guideline by the following algorithm:  Perform \split once for the original join graph, then adapt the join graph by forcing the join(s) on the grouping key to be top-level, \eg by nesting the query graph, and perform \split again for each adapted query graph.  Choosing the resulting QEP with the minimal physical costs from each independent optimization yields exactly the QEP that would be constructed by \holistic\footnote{At least \wrt exploiting fused physical operators.  Other scenarios may only be detected by applying \holistic.} while aiming to decrease the optimization time in most cases.  This represents basically \topk but forces the desired join orders to appear in the best k algebraic plans.
-
-Thirdly, we want to include the algebraic cost abstraction scenario in our guideline.  %As this highly depends on the estimated cardinalities, we first analyze the conditions, that have to be fulfilled for our exemplary microbenchmark in the last subsection, in the following.  Note that we denote the cardinality of a base relation $R$ as $|R|$ and the cardinality of a subproblem $\{R, S\}$ as $|R,S|$. Furthermore, we omit any restrictions on the full subproblem \{R,~S,~T\} for simplicity.
-%There are multiple inequalities due to foreign key constraints, \ie the result of a foreign key join cannot exceed the size of the input relation containing the foreign key, but may become smaller if the relation containing the primary key is filtered.  Additionally, there are general restriction like the size of a join cannot exceed the size of the corresponding Cartesian product.
-%\begin{align}
-%	|\text{R},\text{S}| &\leq |\text{R}|\\
-%	|\text{S},\text{T}| &\leq |\text{T}|\\
-%	|\text{R},\text{T}| &\leq |\text{R}| * |\text{T}|
-%\end{align}
-%Furthermore, to enforce the QEPs depicted in \autoref{fig:microbenchmark_join_order}, the following inequalities must hold.  Note that Equations (\ref{eq:min_cout_begin})~-~(\ref{eq:min_cout_end}) minimize~\Cout and Equations (\ref{eq:min_cphys_begin})~-~(\ref{eq:min_cphys_end}) minimize the physical costs.
-%\begin{align}
-%	|\text{S},\text{T}| &\leq |\text{R},\text{S}| \label{eq:min_cout_begin}\\
-%	|\text{S},\text{T}| &\leq |\text{R},\text{T}| \label{eq:min_cout_end}\\
-%	|\text{T}| &\leq |\text{S}| \label{eq:min_cphys_begin}\\
-%	|\text{S},\text{T}| &\leq |\text{R}|\\
-%	|\text{R}| &\leq |\text{S}|\\
-%	|\text{R},\text{S}| &\leq |\text{T}| \label{eq:min_cphys_end}
-%\end{align}
-%Especially, the cost determined by \Cout must be strictly lower for the QEP chosen by the split approach than the one chosen by the holistic approach.
-%\begin{align}
-%	|\text{S},\text{T}| &< |\text{R},\text{S}| \label{eq:cout}
-%\end{align}
-%However, the physical costs must be ordered vice versa.
-%\begin{align}
-%	1.5 * |\text{T}| + |\text{S}| + 1.5 * |\text{S},\text{T}| + |\text{R}| &> 1.5 * |\text{R}| + |\text{S}| + 1.5 * |\text{R},\text{S}| + |\text{T}|\notag\\
-%	\Leftrightarrow 0.5 * |\text{T}| + 1.5 * |\text{S},\text{T}| &> 0.5 * |\text{R}| + 1.5 * |\text{R},\text{S}| \label{eq:cphys}
-%\end{align}
-%Overall, we deduce the following total order for the cardinalities needed for the microbenchmark.
-%\begin{align}
-%	|\text{S},\text{T}| < |\text{R},\text{S}| \leq |\text{R}| \leq |\text{T}| - 3 * (|\text{R},\text{S}| - |\text{S},\text{T}|) \leq |\text{S}|
-%\end{align}
-%Note that $|\text{R}|$ must be significantly smaller than $|\text{T}|$ depending on the difference between $|\text{S},\text{T}|$ and $|\text{R},\text{S}|$.
-%Unsurprisingly, the cardinalities for our microbenchmark were picked to fulfill this order.  However, given another query with similar properties regarding join graph and foreign key constraints, our proposed guideline could be extended to test whether these inequalities are fulfilled.  If not, holistic optimization will not yield another QEP due to algebraic cost abstraction than split optimization.  Unfortunately, it is not be feasible to include such cardinality inequalities for all possible query structures.  Therefore, future work could implement a hybrid approach by first computing the top-k algebraic plans and resume with the physical optimization of the cheapest algebraic plan according to the split approach if the algebraic costs differ by more than a certain threshold.  If this threshold is undercut, \ie multiple join orders are more or less equal costly, we restart using the holistic approach as otherwise it would be more likely to suffer from the algebraic cost abstraction issue.
-As this highly depends on the estimated cardinalities of the concrete query, we want to try out multiple join orders that are more or less equal costly are optimized physically which hopefully includes the join order of the globally optimal QEP.  Therefore, use \topk.  Setting k to a small number, \eg 2 or 3, is often sufficient in practice as our microbenchmarks and the experiments in the following section confirm.  Future work could replace the absolute number~k with a relative threshold $\text{t} \in [1.0, \infty)$ \st all algebraic plans with costs in the interval $[\text{c}, \text{t}*\text{c}]$, where c is the cost of the cheapest algebraic plan, are returned and then physically optimized.
+In conclusion, RQ~2 can be \revisionrewrite{confirmed} since we found three independent scenarios where \holistic\revisionadd{, and thus also \topkconfig{2} and \holisticpruned,} \revisionrewrite{are} superior to \split, especially for larger datasets.
 
 \input{tbl-eval-real_world_benchmarks}
 
 \subsection{TPC-H, JOB, and CEB Benchmarks}
 \label{sec:eval-real_world_benchmarks}
 
-To investigate whether cases as described by the three microbenchmarks also occur in practice and to answer RQ~4, we survey the TPC-H~\cite{tpch}, JOB~\cite{job}, and CEB~\cite{ceb} benchmarks.  Therefore, we compare the resulting QEPs of the different optimization approaches and measure again both the optimization time and the running time.  JOB and CEB can be considered real-world as they query the IMDb dataset\footnote{Note that we restricted the string attributes to 100 characters to meet \mutable's memory limit of 16GiB.}, whereas TPC-H queries synthetic data on scale factor~1 but is considered here due to containing post-join operations like grouping.  For TPC-H, we tested every query with its substitution parameters set as specified for query validation.  For CEB, we restrict ourselves to one query per query template.  To remove the influence of cardinality estimation, we inject the true cardinalities for each executed query into \mutable's cardinality estimator.
+To investigate whether cases as described by the three microbenchmarks also occur in practice and to answer RQ~\revisionrewrite{3}, we survey the TPC-H~\cite{tpch}, JOB~\revisionadd{\cite{job, job_paper}}, and CEB~\revisionadd{\cite{ceb, ceb_paper}} benchmarks.  Therefore, we compare the resulting QEPs of the different optimization approaches and measure again both the optimization time and the running time.  JOB and CEB can be considered real-world as they query the IMDb dataset\footnote{Note that we \revisionrewrite{cut strings} to 100 characters to meet \mutable's memory limit of 16GiB.}, whereas TPC-H queries synthetic data on scale factor~1.0 but is considered here due to containing post-join operations like grouping.  For TPC-H, we tested every query with its substitution parameters set as specified for query validation.  For CEB, we restrict ourselves to one query per query template.
 
-Our implementation in \mutable supports multiple ways to access base relations: a full table scan, an ISAM that provides the data sorted on a specific attribute, and an index scan similar to the ISAM but additionally fusing the logic of a subsequent filter operator on the same attribute.  Both ISAM and index scan require an index --- in our case a simple sorted array --- to be available.  Therefore, we run all experiments without any indexes and with the indexes built as specified by the corresponding benchmark.  We state per query which of both configurations is used.
+\revisionremove{Our implementation in \mutable supports multiple ways to access base relations: a full table scan, an ISAM that provides the data sorted on a specific attribute, and an index scan similar to the ISAM but additionally fusing the logic of a subsequent filter operator on the same attribute.  Both ISAM and index scan require an index --- in our case a simple sorted array --- to be available.  Therefore, we run all experiments without any indexes and with \revisionrewrite{all} the indexes built as specified by the corresponding benchmark.  We state per query which of both configurations is used.}
 
-Overall, out of the 10 TPC-H, 113 JOB, and 16 CEB queries we considered, \holistic returns a different QEP than \split for 58 queries, but only yields a significant speedup for very few queries.  Therefore, we will examine those queries as well as additional scenarios explaining why no speedup is achieved by \holistic.  Additionally, we applied \topk for the presented scenarios with the hyperparameter~k set \st the same QEP is found as by \holistic.  Thus, we only show one running time for both approaches but state the optimization time individually.
+Overall, out of the \revisionrewrite{19} TPC-H\footnote{\revisionadd{TPC-H q13, q15, and q20 are omitted due to lack of support of outer joins and views in \mutable.}}, 113 JOB, and 16 CEB queries we considered, \holistic returns a different QEP than \split for \revisionrewrite{51} queries, but only yields a significant speedup for very few queries.  Therefore, we will examine those queries as well as additional scenarios explaining why no speedup is achieved by \holistic.  Additionally, we \revisionrewrite{apply} \revisionadd{\holisticpruned, as well as} \topk for the presented scenarios with the hyperparameter~k set \sut the same QEP is found as by \holistic.  Thus, we only show one running time for \revisionrewrite{these} approaches but state the optimization \revisionrewrite{times} individually.
 
 \textbf{Sample Queries.}
 With our conducted evaluation, we detect four scenarios where \split and \holistic produce different QEPs.  For each scenario, we investigate one representative sample query \wrt its performance.  Our findings are summarized in \autoref{tbl:real_world_benchmarks}.
 
-In TPC-H q3, \holistic is able to exploit a group-join independent of the utilized join enumeration and the availability of indexes whereas \split is forced to execute singleton join and grouping operators due to unfavorable join order.  Note that we adapted the date parameters for the filters slightly, \ie 1995-04-15 instead of 1995-03-15, to achieve the desired cardinalities.  Our experiment confirms that the QEP chosen by \holistic \wrt our cost model indeed yields a superior running time.  Due to the comparatively low optimization effort for a query with only three base relations, the query execution time by applying \holistic, as well as \topkconfig{2}, reaches a speedup of approximately 1.3x compared to \split.
+In TPC-H q3, \holistic is able to exploit a group-join independent of the utilized join enumeration \revisionremove{and the availability of indexes }whereas \split is forced to execute singleton join and grouping operators due to unfavorable join order.  Note that we adapted the date parameters for the filters slightly\revisionremove{, \ie 1995-04-15 instead of 1995-03-15,} to achieve the desired cardinalities.  Our experiment confirms that the QEP chosen by \holistic \revisionremove{\wrt our cost model }indeed yields a superior running time \revisionadd{in practice}.  Due to the comparatively low optimization effort for a query with only three base relations, the query execution time \revisionrewrite{when} applying \holistic, as well as \topkconfig{2} \revisionadd{and \holisticpruned}, reaches a speedup of approximately \revisionrewrite{1.4x} compared to \split.
 
-In JOB q5c, \holistic is able to exploit sortedness when indexes are available by utilizing multiple indexes to enable two MJs.  In contrast, the join order chosen by \split prevents the use of MJs.  However, our measurements show that the QEP chosen by \holistic \wrt our cost model actually yields a deteriorated running time.  This deterioration is caused by an additional materialization before the MJ necessary to execute the pull-based MJ logic\footnote{A pull-based execution has control from which child the next tuple is requested.  This is necessary in the MJ logic to switch between inputs multiple times in constrast to, for example, SHJ logic that only needs all tuples from its build input and then all tuples from its probe input.} in an otherwise push-based execution engine.  Our cost model according to Defintion~\ref{eq:cost-mj}, however, does not incorporate this materialization.  Also the optimization effort for this query with five base relations is relatively high when optimizing holistically \st \split overall is superior by a factor of more than 2x.  Although \topkconfig{3} significantly lowers this optimization effort, it also falls short at end-to-end performance compared to \split.
+In JOB q5c, \holistic is able to exploit sortedness \revisionremove{when indexes are available }by utilizing multiple indexes to enable two MJs.  In contrast, the join order chosen by \split prevents the use of MJs.  However, our measurements show that the QEP chosen by \holistic \revisionremove{\wrt our cost model }actually yields a deteriorated running time \revisionadd{in practice}.  This deterioration is caused by an additional materialization before the MJ necessary to execute the pull-based MJ logic\footnote{A pull-based execution has control from which child the next tuple is requested.  This is necessary in the MJ logic to switch between inputs multiple times in constrast to, for example, SHJ logic that only needs all tuples from its build input and then all tuples from its probe input.} in an otherwise push-based execution engine~\revisionadd{\cite{push_vs_pull}}.  Our cost model according to Defintion~\ref{eq:cost-mj}, however, does not incorporate this materialization.  Also the optimization effort for this query with five base relations is relatively high when optimizing holistically \sut \split overall is superior by a factor of more than 2x.  Although \topkconfig{3} \revisionadd{and \holisticpruned} significantly \revisionrewrite{lower} this optimization effort, \revisionrewrite{they also fall} short at end-to-end performance compared to \split.
 
 %JOB queries q3a, q6e, q8c, and q11a are all instances of our third microbenchmark that specifies a different join order due to the removal of the algebraic cost abstraction.  Out of those queries, q3a is the only one where split and holistic optimization each return a QEP independent of the choice of join enumeration algorithm.  Even if the overhead by optimizing the query holistically is quite high, the join order chosen \wrt to the physical cost model is superior to the split approach.  Overall, holistic optimization is able to achieve a speedup of 1.15x to 1.28x. \todo{fix improvement factor and add top-k}
 
 %The experiments of queries q6e and q8c have some similarities.
-JOB q8c is an instance of our third microbenchmark that specifies a different join order due to the removal of the algebraic cost abstraction without utilizing indexes.  Only \split utilizing \PEall results in a substantially different join order than the other five configurations due to a chosen Cartesian product which, however, only produces an intermediate of size 1.  Interestingly, this join order induces a smaller search space for the subsequent physical optimization step which explains the faster optimization time of this configuration compared to \split utilizing \DPccp.  As the QEPs match when applying \DPccp, the running time also matches between all approaches.  Therefore, only the increased optimization time influences the overall query execution time.  This optimization overhead renders \holistic to be worse by a negative factor of 0.92x.  \topkconfig{2}, however, significantly reduces the optimization time and thus is on par with \split.  For \PEall, the aforementioned different join order when applying \split performs worse in practice.  Note that the runnning time of \holistic with \PEall differs from the one with \DPccp due to a different children order of a NLJ which is not recognized by the symmetric cost function stated in Definition~\ref{eq:cost-nlj}.  Again, \topkconfig{2} finds the holistic QEP in a time comparable to \split.  Therefore, compared to \split, \topkconfig{2} is superior with a speedup of more than 1.2x, whereas \holistic is now on par.  Furthermore, both \topk and \holistic might become superior for \PEall and larger datasets as the running time becomes the bottleneck.
+JOB q8c is an instance of our third microbenchmark that specifies a different join order due to the removal of the algebraic cost abstraction\revisionremove{ without utilizing indexes}.  Only \split{} \revisionrewrite{with} \PEall results in a substantially different join order than the other \revisionrewrite{11} configurations due to a chosen Cartesian product which, however, only produces an intermediate of size 1.  Interestingly, this join order induces a smaller search space for the subsequent physical optimization step which explains the faster optimization time of this configuration compared to \split utilizing \DPccp{} \revisionadd{or \TDbasic}.  As the QEPs match when applying \DPccp{} \revisionadd{or rather \TDbasic}, the running time also matches between all approaches.  Note that the running time \revisionrewrite{when applying \DPccp} differs from the \revisionrewrite{others} due to a different children order of a NLJ which is not recognized by the symmetric cost function stated in Definition~\ref{eq:cost-nlj}.  Therefore, only the increased optimization time influences the \revisionremove{overall} query execution time.  This optimization overhead renders \holistic to be worse by a \revisionremove{negative }factor of \revisionrewrite{0.87x}.  \topkconfig{2} \revisionadd{as well as \holisticpruned}\revisionremove{, however,} significantly \revisionrewrite{reduce} the optimization time and thus \revisionrewrite{are} on par with \split.  For \PEall, the aforementioned different join order when applying \split performs worse in practice.  Again, \topkconfig{2} \revisionadd{and \holisticpruned} \revisionrewrite{find} the holistic QEP in a time comparable to \split.  Therefore, compared to \split, \topkconfig{2} \revisionadd{and \holisticpruned are} superior with a speedup of more than 1.2x\revisionremove{, whereas \mbox{\holistic} is now on par}.  Furthermore, \revisionremove{both \mbox{\topk} and} \holistic might become superior for \PEall and larger datasets as the running time becomes the bottleneck.
 
-Lastly, optimizing JOB q11a yields completely different QEPs with different join orders and utilizes some indexes.  Again, the physical optimization step in \split is faster due to a smaller search space when resolving the join order determined by \PEall.  To discover the globally optimal QEP found by \holistic for \DPccp, we need to apply \topkconfig{35}, \ie the chosen join order is only the 35th cheapest \wrt the algebraic cost model.  This explains the relatively large optimization time in this configuration.  The running times are similar for all configurations and negligible when comparing them with the optimization effort needed by \holistic.  In conclusion, this experiment highlights the overhead of holistically optimizing large queries, \eg 8 base relations in q11a, and the potential of fast hybrid strategies to take advantage of even small speedups in the running times, \eg in this experiment a speedup of approximately 1.1x for \topk and \holistic compared to \split for \DPccp.
+Lastly, optimizing JOB q11a yields completely different QEPs with different join orders\revisionremove{ and utilizes some indexes}.  Again, the physical optimization step in \split is faster due to a smaller search space when resolving the join order determined by \PEall.  To discover the globally optimal QEP found by \holistic for \DPccp{} \revisionadd{or rather \TDbasic}, we need to apply \topkconfig{35}, \ie the chosen join order is only the 35th cheapest \wrt the algebraic cost model.  This explains the relatively large optimization time in \revisionrewrite{these} configuration.  The running times are similar for all configurations and negligible when comparing them with the optimization effort needed by \holistic\revisionadd{, even if pruning significantly lowers the optimization time}.  In conclusion, this experiment highlights the overhead of holistically optimizing large queries, \eg 8 base relations in q11a, and the potential of fast hybrid strategies to take advantage of even small speedups in the running times, \eg in this experiment a speedup of approximately \revisionrewrite{1.15x} for \topk and \holistic compared to \split for \DPccp{} \revisionadd{or \TDbasic}.
 
 %In conclusion, none of both approaches dominates the other in practice.  There are cases where the holistic approach yields better performance, \eg when exploiting group-join or removing algebraic cost abstraction with feasible optimization time, and vice versa, \eg exploiting sortedness or optimizing large queries.
 
 \textbf{Limitations.}
-Using the considered benchmarks, \holistic was only superior in one case, \topk in two cases.  On the one hand, this can be explained by the relatively low running times of the majority of queries that favors fast optimization like \split, however, on the other hand, we faced several limitations that prevented \holistic from finding additional QEPs and disorientated the performance.
+\revisionrewrite{In} the considered benchmarks, \holistic was only superior in one case, \topk{} \revisionadd{and \holisticpruned} in two cases.  On the one hand, this can be explained by the relatively low running times of the majority of queries that favors fast optimization like \split, \revisionremove{however, }on the other hand, \revisionrewrite{the benchmarks itselves impose certain limitations}.
+\revisionremove{The characteristics of the considered benchmarks disable some scenarios.  }JOB and CEB only contain select-project-join queries for which a group-join can not be exploited due to the missing grouping.  Furthermore, sortedness can not be exploited using the TPC-H schema as join keys are only used \revisionrewrite{for a specific} join.  Also in the \revisionremove{standard }CEB and JOB queries sortedness is difficult to exploit due to missing filters on join keys which disables the application of index scans \revisionadd{fusing an algebraic scan and filter operator}.
 
-Firstly, the characteristics of the considered benchmarks disable some scenarios.  JOB and CEB only contain select-project-join queries for which a group-join can not be exploited due to the missing grouping.  Furthermore, sortedness can not be exploited using the TPC-H schema as join keys are only used once for a certain join.  Also in the standard CEB and JOB queries sortedness is difficult to exploit due to missing filters on join keys which disables the application of index scans.
+Additionally, our implementation has some limitations.  The operators ISAM and index scan are limited to a sorted array index and their cost models are difficult to estimate.  Additionally, they are currently parameterized with templates for the accessed attribute\revisionremove{, \ie basically one physical operator per possible attribute,} which artificially blows up the search space.  Moreover, the MJ implementation is limited to 1:N joins and introduces additional materialization as explained for JOB q5c.
 
-Secondly, our implementation itself has some limitations.  The operators ISAM and index scan are limited to a sorted array index and their cost models are difficult to estimate.  Additionally, they are currently parameterized with templates for the accessed attribute, \ie basically one physical operator per possible attribute, which artificially blows up the search space.  Moreover, the MJ implementation is limited to 1:N joins and introduces additional materialization as explained for JOB q5c.
+\revisionadd{\textbf{Discussion.}}
+Supporting \revisionrewrite{additional} physical operators\revisionadd{, \eg worst-case optimal joins~\cite{worst_case_optimal_joins} as fused operator,} would increase the search space \revisionremove{leading to an even more complex optimization problem}\revisionrewrite{and} the potential gain of holistically enumerating all QEPs\revisionremove{ would be significantly increased as well}.  \revisionadd{Additionally, we have seen for JOB q5c that an imprecise cost model may cause deteriorated running times in practice.  Similarly, the same holds for imprecise cardinality estimates as they serve as input for the cost model.  However, we expect all optimization approaches to suffer similarly from such inaccuracies as they rely on the same cost estimates.  For the scope of this paper, we focus on the defined cost model and injecting the true cardinalities.}
 
-Lastly, supporting more physical operators would increase the search space leading to an even more complex optimization problem, however, the potential gain of holistically enumerating all QEPs would be significantly increased as well.
+\revisionremove{Resolving \revisionrewrite{aforementioned} limitations \revisionadd{and extensions} and further exploring the potential of \holistic\revisionadd{, more sophisticated pruning techniques, } and hybrid approaches like \topk remains future work.}
 
-Resolving these limitations and further exploring the potential of \holistic and hybrid approaches like \topk remains future work.
+\begin{figure}
+    \centering
+    \small
+    \begin{tikzpicture}[
+       arrow/.style={-Stealth, draw, line width=.6pt},
+       box/.style={draw=black, thick, align=center, rounded corners}
+    ]
+       \node[box] (n0) at (0,0) {\#reusable join attributes};
+       \node[box] (n10) at (-1.4,-1.3) {grouping key\\also join attribute?};
+       \node[box] (n11) at (1.4,-1.3) {grouping key\\also join attribute?};
+       \node[box] (n21) at (0,-2.6) {\#relations};
+       \node[box] (n22) at (2.4,-2.6) {\#relations};
+       \node (n20) at (-2.4,-2.6) {\split};
+       \node (n30) at (-0.8,-3.5) {\topkconfig{5}};
+       \node (n31) at (0.8,-3.5) {\topkconfig{10}};
+       \node (n32) at (2.4,-3.5) {\holisticpruned};
+       \node (n33) at (4,-3.5) {\holistic};
+       \draw[arrow] (n0.south) -- (n10.north) node[midway, xshift=-.55cm] {[0;24]};
+       \draw[arrow] (n0.south) -- (n11.north) node[midway, xshift=.6cm] {[25;$\infty$)};
+       \draw[arrow] (n10.south) -- (n20.north) node[midway, xshift=-.3cm] {no};
+       \draw[arrow] (n10.south) -- (n21.north) node[midway, xshift=.3cm] {yes};
+       \draw[arrow] (n11.south) -- (n21.north) node[midway, xshift=-.3cm] {no};
+       \draw[arrow] (n11.south) -- (n22.north) node[midway, xshift=.3cm] {yes};
+       \draw[arrow] (n21.south) -- (n30.north) node[midway, xshift=-.4cm] {[2;7]};
+       \draw[arrow] (n21.south) -- (n31.north) node[midway, xshift=-.3cm, yshift=-.05cm] {[8;$\infty$)};
+       \draw[arrow] (n22.south) -- (n31.north) node[midway, xshift=-.35cm, yshift=.05cm] {[8;$\infty$)};
+       \draw[arrow] (n22.south) -- (n32.north) node[midway, xshift=-.3cm, yshift=-.05cm] {[4;7]};
+       \draw[arrow] (n22.south) -- (n33.north) node[midway, xshift=.4cm, yshift=.05cm] {[2;3]};
+    \end{tikzpicture}
+    \vspace*{\captiongap}
+    \vspace*{\captiongap}
+    \captionsetup{font={color=c_revisionadd},labelfont=bf}
+    \caption{Decision graph as optimization guideline.}
+    \label{fig:guideline}
+    \vspace*{-10pt}
+\end{figure}
+
+\subsection{Optimization Guideline}
+\label{sec:eval-guideline}
+
+\revisionremove{As seen previously, the optimization time of \split is significantly lower causing the issue of deciding whether to apply \split or \holistic\ \revisionadd{(with or without pruning)} to achieve the best \revisionrewrite{query} execution time. Furthermore, \topk could be applied but the hyperparameter~k has to be chosen wisely to still \revisionrewrite{find} the holistic QEP while limiting the optimization effort.  }\revisionrewrite{In this section, we address RQ~4 by proposing a decision graph, depicted in \autoref{fig:guideline}, for choosing a suitable optimization approach for a given query}\revisionremove{ and how to use it, \eg whether some preprocessing is needed}.
+
+\revisionrewrite{
+    Since exploiting sortedness is only applicable iff join attributes are reused and exploiting a fused group-join is only applicable iff the grouping key is also a join attribute, we add those two conditions as nodes in the decision tree.  We experimentally determined a value of~24 to be a good threshold for the number of reusable join attributes.
+    If no condition is fulfilled, there is almost no potential gain for holistic optimization, thus we apply \split.
+    If only one condition is fulfilled, we apply \topk which also includes the algebraic cost abstraction scenario in our guideline by trying out multiple join orders that are more or less equal costly\revisionremove{ which hopefully includes the join order of the globally optimal QEP}.  Depending on the query size, we either use \topkconfig{5} or \topkconfig{10}.  %To exploit a fused group-join we need to force the join attribute to appear in the top-level join.  Therefore, we apply the following algorithm called \topksimulated:  Perform \split once for the original join graph, then adapt the join graph \sut joins on the grouping key have to be top-level, \eg by nesting the query graph, and perform \split again for each adapted query graph.  Choosing the resulting QEP with the minimal physical costs from each independent optimization yields exactly the QEP that would be constructed by \holistic while aiming to decrease the optimization time in most cases.  This represents basically \topk but ensures the desired join order to appear in the best k algebraic plans.
+    If both conditions are fulfilled, we want to optimize holistically.  We apply \holisticpruned, except for very small queries for which the initialized cost-based pruning would only induce an optimization overhead and thus applying \holistic instead is beneficial.  However, due to the computational effort to optimize large queries holistically, we define a threshold from which we fall back to \topkconfig{10}.  Setting k to such a comparatively small number is often sufficient in practice as our microbenchmarks and the experiments in the previous section confirm.
+}
+
+%Firstly, since exploiting sortedness becomes only applicable iff a join attribute is reused, the first guideline rule is the following: If a join graph does not contain multiple joins reusing the same join attribute, use \split.
+%
+%Secondly, we observe that the exploitation of a fused group-join becomes only applicable iff the grouping key is also a join key in the top-level join.  Therefore, we extend our proposed guideline by the following algorithm:  Perform \split once for the original join graph, then adapt the join graph by forcing the join(s) on the grouping key to be top-level, \eg by nesting the query graph, and perform \split again for each adapted query graph.  Choosing the resulting QEP with the minimal physical costs from each independent optimization yields exactly the QEP that would be constructed by \holistic\footnote{At least \wrt exploiting fused physical operators.  Other scenarios may only be detected by applying \holistic.} while aiming to decrease the optimization time in most cases.  This represents basically \topk but forces the desired join orders to appear in the best k algebraic plans.
+
+%Thirdly, we want to include the algebraic cost abstraction scenario in our guideline.  %As this highly depends on the estimated cardinalities, we first analyze the conditions, that have to be fulfilled for our exemplary microbenchmark in the last subsection, in the following.  Note that we denote the cardinality of a base relation $R$ as $|R|$ and the cardinality of a subproblem $\{R, S\}$ as $|R,S|$. Furthermore, we omit any restrictions on the full subproblem \{R,~S,~T\} for simplicity.
+%There are multiple inequalities due to foreign key constraints, \ie the result of a foreign key join cannot exceed the size of the input relation containing the foreign key, but may become smaller if the relation containing the primary key is filtered.  Additionally, there are general restriction like the size of a join cannot exceed the size of the corresponding Cartesian product.
+%\begin{align}
+%   |\text{R},\text{S}| &\leq |\text{R}|\\
+%   |\text{S},\text{T}| &\leq |\text{T}|\\
+%   |\text{R},\text{T}| &\leq |\text{R}| * |\text{T}|
+%\end{align}
+%Furthermore, to enforce the QEPs depicted in \autoref{fig:microbenchmark_join_order}, the following inequalities must hold.  Note that Equations (\ref{eq:min_cout_begin})~-~(\ref{eq:min_cout_end}) minimize~\Cout and Equations (\ref{eq:min_cphys_begin})~-~(\ref{eq:min_cphys_end}) minimize the physical costs.
+%\begin{align}
+%   |\text{S},\text{T}| &\leq |\text{R},\text{S}| \label{eq:min_cout_begin}\\
+%   |\text{S},\text{T}| &\leq |\text{R},\text{T}| \label{eq:min_cout_end}\\
+%   |\text{T}| &\leq |\text{S}| \label{eq:min_cphys_begin}\\
+%   |\text{S},\text{T}| &\leq |\text{R}|\\
+%   |\text{R}| &\leq |\text{S}|\\
+%   |\text{R},\text{S}| &\leq |\text{T}| \label{eq:min_cphys_end}
+%\end{align}
+%Especially, the cost determined by \Cout must be strictly lower for the QEP chosen by the split approach than the one chosen by the holistic approach.
+%\begin{align}
+%   |\text{S},\text{T}| &< |\text{R},\text{S}| \label{eq:cout}
+%\end{align}
+%However, the physical costs must be ordered vice versa.
+%\begin{align}
+%   1.5 * |\text{T}| + |\text{S}| + 1.5 * |\text{S},\text{T}| + |\text{R}| &> 1.5 * |\text{R}| + |\text{S}| + 1.5 * |\text{R},\text{S}| + |\text{T}|\notag\\
+%   \Leftrightarrow 0.5 * |\text{T}| + 1.5 * |\text{S},\text{T}| &> 0.5 * |\text{R}| + 1.5 * |\text{R},\text{S}| \label{eq:cphys}
+%\end{align}
+%Overall, we deduce the following total order for the cardinalities needed for the microbenchmark.
+%\begin{align}
+%   |\text{S},\text{T}| < |\text{R},\text{S}| \leq |\text{R}| \leq |\text{T}| - 3 * (|\text{R},\text{S}| - |\text{S},\text{T}|) \leq |\text{S}|
+%\end{align}
+%Note that $|\text{R}|$ must be significantly smaller than $|\text{T}|$ depending on the difference between $|\text{S},\text{T}|$ and $|\text{R},\text{S}|$.
+%Unsurprisingly, the cardinalities for our microbenchmark were picked to fulfill this order.  However, given another query with similar properties regarding join graph and foreign key constraints, our proposed guideline could be extended to test whether these inequalities are fulfilled.  If not, holistic optimization will not yield another QEP due to algebraic cost abstraction than split optimization.  Unfortunately, it is not be feasible to include such cardinality inequalities for all possible query structures.  Therefore, future work could implement a hybrid approach by first computing the top-k algebraic plans and resume with the physical optimization of the cheapest algebraic plan according to the split approach if the algebraic costs differ by more than a certain threshold.  If this threshold is undercut, \ie multiple join orders are more or less equal costly, we restart using the holistic approach as otherwise it would be more likely to suffer from the algebraic cost abstraction issue.
+%As this highly depends on the estimated cardinalities of the concrete query, we want to try out multiple join orders that are more or less equal costly are optimized physically which hopefully includes the join order of the globally optimal QEP.  Therefore, use \topk.  Setting k to a small number, \eg 2 or 3, is often sufficient in practice as our microbenchmarks and the experiments in the following section confirm.  Future work could replace the absolute number~k with a relative threshold $\text{t} \in [1.0, \infty)$ \sut all algebraic plans with costs in the interval $[\text{c}, \text{t}*\text{c}]$, where c is the cost of the cheapest algebraic plan, are returned and then physically optimized.
+
+\begin{figure*}
+    \includegraphics{/mutable/paper/fig/guideline.pdf}
+    \vspace{-.4cm}
+    \captionsetup{font={color=c_revisionadd},labelfont=bf}
+    \caption{Robustness of different approaches compared to the theoretical optimum that chooses the optimization approach yielding the lowest execution time per query.  The slowdown factor is computed by $\nicefrac{t_\textit{approach}}{t_\textit{optimum}}$ per query, where $t_\textit{approach}$ is the query execution time applying the respective approach and $t_\textit{optimum}$ is the minimal execution time over all optimization approaches.  Each plot shows the distribution of slowdown factors across all considered queries.}
+    \label{fig:guideline-results}
+\end{figure*}
+
+\revisionadd{
+    We evaluate our proposed guideline along with \split, \topkconfig{5}, \topkconfig{10}, and \holisticpruned on all 51 aforementioned queries where \holistic finds a different QEP than \split.  Note that we focus on \DPccp for join enumeration and omit \holistic as the majority of queries benefit from pruning.
+    \autoref{fig:guideline-results} depicts the distribution of slowdown factors compared to the theoretical optimum across all queries.  Each violin plot includes a box plot indicating the median, first and third quartiles, and whiskers extending 1.5 times the interquartile range.
+    \split and \topkconfig{5} show similar performance, with almost all queries having a slowdown factor below 2x, indicating that both approaches typically achieve the optimal or a near-optimal query execution time.  However, there are a few notable outliers, \eg JOB q15a, where both miss the optimal QEP, leading to a slowdown of nearly 6x.
+    \topkconfig{10} shows greater variance and a higher median slowdown.  While it finds the optimal QEP for JOB q15a, other queries, such as JOB q5c, q20c, and q33b, suffer from increased optimization overhead and become outliers.
+    \holisticpruned confirms earlier observations: despite being optimal for four queries, its significant optimization overhead makes it unsuitable as a default choice.
+    Lastly, applying our guideline results in slowdown factors similar to \topkconfig{5}, with 75\% of queries below 1.5x.  Unlike fixed strategies, our guideline avoids outliers entirely, making it a more robust choice across all queries.
+}
+

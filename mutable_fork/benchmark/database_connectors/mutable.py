@@ -100,7 +100,7 @@ class Mutable(Connector):
             for case in cases.keys():
                 config_result[label][case] = list()
 
-        if False and not self.check_execute_single_cases(yml):
+        if not self.check_execute_single_cases(yml):
             # All cases can be executed at once
             # Produce code to load data into tables
             imports: list[str] = self.get_setup_statements(suite, path_to_data, yml['data'], None)
@@ -120,7 +120,7 @@ class Mutable(Connector):
                     tqdm_print(out)
                     return config_result
                 measurements = self.parse_results(out, config['pattern'])
-            except ExperimentTimeoutExpired:
+            except (ExperimentTimeoutExpired, ConnectorException):
                 # Add timeout durations
                 for _ in range(n_runs):
                     for label in pattern_labels:
@@ -171,7 +171,7 @@ class Mutable(Connector):
                             tqdm_print(out)
                             continue
                         measurements = self.parse_results(out, config['pattern'])
-                    except ExperimentTimeoutExpired:
+                    except (ExperimentTimeoutExpired, ConnectorException):
                         # Add timeout duration
                         for label in pattern_labels:
                             config_result[label][case].append(float(timeout * 1000))

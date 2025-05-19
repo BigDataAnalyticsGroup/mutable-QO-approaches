@@ -30,6 +30,8 @@ template<bool IsGlobal> struct buffer_swap_proxy_t;
 
 struct NChar : Ptr<Charx1>
 {
+    using primitive_type = NChar;
+
     private:
     bool can_be_null_;
     const CharacterSequence *type_;
@@ -853,7 +855,7 @@ struct CodeGenContext
     private:
     Environment *env_ = nullptr; ///< environment for locally bound identifiers
     Global<U64x1> num_tuples_; ///< variable to hold the number of result tuples produced
-    std::unordered_map<const char*, NChar> literals_; ///< maps each literal to its address at which it is stored
+    std::unordered_map<const char*, std::pair<uint64_t, NChar>> literals_; ///< maps each literal to its address at which it is stored
     ///> number of SIMD lanes currently used, i.e. 1 for scalar and at least 2 for vectorial values
     std::size_t num_simd_lanes_ = 1;
     ///> number of SIMD lanes currently preferred, i.e. 1 for scalar and at least 2 for vectorial values
@@ -868,7 +870,7 @@ struct CodeGenContext
         num_tuples_.val().discard();  // artificial use of `num_tuples_` to silence diagnostics if unittests are executed
 #endif
         for (auto &p : literals_)
-            p.second.discard();
+            p.second.second.discard();
     }
 
     /*----- Thread-local instance ------------------------------------------------------------------------------------*/
@@ -913,14 +915,24 @@ struct CodeGenContext
 
     /** Adds the string literal `literal` located at pointer offset `ptr`. */
     void add_literal(const char *literal, uint64_t ptr) {
-        auto [_, inserted] = literals_.emplace(literal, NChar(Ptr<Charx1>(U64x1(ptr)), false, strlen(literal) + 1, true));
+        auto [_, inserted] = literals_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(literal),
+            std::forward_as_tuple(ptr, NChar(Ptr<Charx1>(U64x1(ptr)), false, strlen(literal) + 1, true))
+        );
         M_insist(inserted);
+    }
+    /** Returns the raw address at which `literal` is stored. */
+    uint64_t get_literal_raw_address(const char *literal) const {
+        auto it = literals_.find(literal);
+        M_insist(it != literals_.end(), "unknown literal");
+        return it->second.first;
     }
     /** Returns the address at which `literal` is stored. */
     NChar get_literal_address(const char *literal) const {
         auto it = literals_.find(literal);
         M_insist(it != literals_.end(), "unknown literal");
-        return it->second.clone();
+        return it->second.second.clone();
     }
 
     /** Returns the number of SIMD lanes used. */
@@ -1326,13 +1338,13 @@ enum cmp_op
 };
 
 /** Compares two strings \p left and \p right.  Has similar semantics to `strncmp` of libc. */
-_I32x1 strncmp(NChar left, NChar right, U32x1 len);
+_I32x1 strncmp(NChar left, NChar right, U32x1 len, bool reverse = false);
 /** Compares two strings \p left and \p right.  Has similar semantics to `strcmp` of libc. */
-_I32x1 strcmp(NChar left, NChar right);
+_I32x1 strcmp(NChar left, NChar right, bool reverse = false);
 /** Compares two strings \p left and \p right.  Has similar semantics to `strncmp` of libc. */
-_Boolx1 strncmp(NChar left, NChar right, U32x1 len, cmp_op op);
+_Boolx1 strncmp(NChar left, NChar right, U32x1 len, cmp_op op, bool reverse = false);
 /** Compares two strings \p left and \p right.  Has similar semantics to `strcmp` of libc. */
-_Boolx1 strcmp(NChar left, NChar right, cmp_op op);
+_Boolx1 strcmp(NChar left, NChar right, cmp_op op, bool reverse = false);
 
 
 /*======================================================================================================================
@@ -1350,9 +1362,21 @@ Ptr<Charx1> strncpy(Ptr<Charx1> dst, Ptr<Charx1> src, U32x1 count);
  * SQL LIKE
  *====================================================================================================================*/
 
-/** Compares whether the string \p str matches the pattern \p pattern regarding SQL LIKE semantics using escape
+/** Checks whether the string \p str matches the pattern \p pattern regarding SQL LIKE semantics using escape
  * character \p escape_char. */
 _Boolx1 like(NChar str, NChar pattern, const char escape_char = '\\');
+/** Checks whether the string \p str contains the pattern \p pattern.  The implementation is based on the
+ * Knuth–Morris–Pratt algorithm and represents a special case of the SQL LIKE in which the pattern is known at query
+ * compile time and has the form `%[^_%\\]+%`. */
+_Boolx1 like_contains(NChar str, const ThreadSafePooledString &pattern);
+/** Checks whether the string \p str has the prefix \p pattern.  The implementation is based on rewriting to string
+ * comparisons and represents a special case of the SQL LIKE in which the pattern is known at query compile time and
+ * has the form `[^_%\\]+%`. */
+_Boolx1 like_prefix(NChar str, const ThreadSafePooledString &pattern);
+/** Checks whether the string \p str has the suffix \p pattern.  The implementation is based on rewriting to string
+ * comparisons and represents a special case of the SQL LIKE in which the pattern is known at query compile time and
+ * has the form `%[^_%\\]+`. */
+_Boolx1 like_suffix(NChar str, const ThreadSafePooledString &pattern);
 
 
 /*======================================================================================================================

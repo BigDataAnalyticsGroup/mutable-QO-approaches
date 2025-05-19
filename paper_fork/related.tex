@@ -5,20 +5,16 @@ We investigate related publications in the fields of query optimization as well 
 
 \textbf{Related Publications.}
 The conceptual separation of the QOP into algebraic and physical optimization steps is covered by a large body of work, especially in textbooks and teaching materials.  \ca{book_moerkotte} provides an extensive description of this separation.  In that work, algebraic optimization is referred to as logical optimization that additionally includes rule-based optimizations like projection and selection push-down.  The physical optimization step defined by \citeauthor{book_moerkotte} is responsible for choosing physical operators while considering different output properties.  Note that these properties are equivalent to our post-conditions, however, are only used in the physical optimization step in contrast to \holistic.
-
 The seminal paper of \ca{access_path_selection} lays the foundation for \holistic as they incorporate the aforementioned properties into join ordering.  They focus on different access paths, \ie different physical implementations, but are limited to segment scans versus index scans and NLJs versus MJs.  Moreover, the term \emph{interesting orders} as first output property is coined.
-
-Other papers often restrict themselves to subproblems of the QOP like join ordering~\cite{mutable_join_ordering, dp_ccp, dp_sub} by assuming \split as optimization approach.  To the best of our knowledge, \holistic is never mentioned and evaluated explicitly even if, for example, \ca{neo} apply a holistic yet machine-learned optimization in their optimizer Neo.
-
+Other papers often restrict themselves to subproblems of the QOP like join ordering~\cite{mutable_join_ordering, dp_ccp, dp_sub} by assuming \split as optimization approach.  To the best of our knowledge, \holistic is never mentioned and evaluated explicitly even if, for example, \ca{neo} apply a holistic yet machine-learned optimization in their query optimizer Neo \revisionadd{and extend this idea by providing per-query optimization hints in Bao~\mbox{\cite{bao}}}.
+\revisionadd{
+    \mbox{\ca{top_down_pruning}} introduces the idea of pruning in top-down join ordering.  Besides accumulated-cost bounding, they also propose predicated-cost bounding as instantiation of branch-and-bound pruning, which may be implemented into \holistic as well.
+}
 \ca{groupjoin} make the case for fused operators by proposing group-joins.  Simple implied equivalences are described that enable the application of a HBGJ in queries like TPC-H Q3.  Our framework builds upon their ideas and is thus able to reproduce and extend this scenario in our evaluation.
-
 The concept of interesting orders, introduced by System~R, is deepened and formally defined by \ca{interesting_orders}.  Later, \ca{interesting_orders_and_groupings} extend these output properties to \emph{interesting groupings}.  They observe that sort-based physical implementations, \eg a sort-based grouping, often only require their input to be grouped instead of fully sorted.  Therefore, keeping track of existing groupings introduced by, for example, MJs enables the optimizer to utilize these physical operators.
 
 \textbf{Related Database Systems.}
 DuckDB has a clear interface for its query optimizer that points out the application of \split~\cite{duckdb}.  Moreover, DuckDB utilizes \DPccp in combination with the cost model \Cout and implements many rule-based optimization rules on the intermediate algebraic plan, however, to the best of our knowledge lacks the use of a physical group-join operator.
-
 PostgreSQL optimizes the join order before optimizing the post-join operators, however in contrast to DuckDB, it seems to apply \holistic similar to System~R since the join order optimizer returns multiple access paths from which the post-join optimizer can freely choose~\cite{postgres}.  These access paths represent basically the mapping from post-conditions to local QEPs with its costs.   Furthermore, PostgreSQL also does not support a group-join operator.
-
 Similarly, MySQL --- and most likely its evolution MariaDB --- implements \holistic using interesting orders as post-condition~\cite{mysql}.  In general, MySQL follows former research in this area, \eg incorporating interesting groupings as well.
-
 In contrast, SQLite did not evolve from database research.  Therefore, quite uncommon terms are used for some features, however, SQLite still utilizes \holistic similar to System~R by distinguishing between different access methods during join ordering~\cite{sqlite}, however, it ignores bushy plan structures.

@@ -52,6 +52,65 @@ static void register_instructions()
  * Data Manipulation Language (DML)
  *====================================================================================================================*/
 
+/** Chooses the optimizer to apply according to the given query graph \p G.  Sets the given options accordingly. */
+void choose_optimizer(const QueryGraph &G, bool &use_split_optimizer, bool &top_k_enumeration,
+                      std::size_t &top_k_hyperparameter, bool &use_holistic_optimizer,
+                      bool &enable_initialized_cost_based_pruning, bool &enable_branch_and_bound_pruning)
+{
+    auto count_reusable_join_attrs = [](const QueryGraph &G){
+        auto res = 0;
+        for (auto &join : G.joins()) {
+            res += std::count_if(G.joins().begin(), G.joins().end(), [&join](auto &_join){
+                return join != _join and
+                       not (join->condition().get_required() & _join->condition().get_required()).empty();
+            });
+        }
+        return res / 2;
+    };
+    auto grouping_key_is_join_attr = [](const QueryGraph &G){
+        if (G.group_by().empty())
+            return false;
+        Schema grouping_key;
+        for (auto &p : G.group_by())
+            grouping_key |= p.first.get().get_required();
+        auto it = std::find_if(G.joins().begin(), G.joins().end(), [&grouping_key](auto &join){
+            return (join->condition().get_required() & grouping_key).num_entries() == grouping_key.num_entries();
+        });
+        return it != G.joins().end();
+    };
+
+    if (count_reusable_join_attrs(G) > 24) {
+        if (grouping_key_is_join_attr(G)) {
+            if (G.sources().size() < 8) {
+                use_holistic_optimizer = true;
+                if (G.sources().size() > 3) {
+                    enable_initialized_cost_based_pruning = true;
+                    enable_branch_and_bound_pruning = true;
+                }
+            } else {
+                top_k_enumeration = true;
+                top_k_hyperparameter = 10;
+            }
+        } else {
+            top_k_enumeration = true;
+            if (G.sources().size() >= 8)
+                top_k_hyperparameter = 10;
+            else
+                top_k_hyperparameter = 5;
+        }
+    } else {
+        if (grouping_key_is_join_attr(G)) {
+            top_k_enumeration = true;
+            if (G.sources().size() >= 8)
+                top_k_hyperparameter = 10;
+            else
+                top_k_hyperparameter = 5;
+        } else {
+            use_split_optimizer = true;
+        }
+    }
+}
+
 void QueryDatabase::execute(Diagnostic &diag)
 {
     Catalog &C = Catalog::Get();
@@ -92,19 +151,24 @@ void QueryDatabase::execute(Diagnostic &diag)
     bool use_split_optimizer = false;
     bool exhaustive_enumeration = false;
     bool top_k_enumeration = false;
+    bool use_holistic_optimizer = false;
     switch (Options::Get().optimizer_type) {
+        case Options::Opt_auto:
+            choose_optimizer(*graph_, use_split_optimizer, top_k_enumeration, Options::Get().optimizer_top_k,
+                             use_holistic_optimizer, Options::Get().enable_initialized_cost_based_pruning,
+                             Options::Get().enable_branch_and_bound_pruning);
+            break;
         case Options::Opt_TopK:
             top_k_enumeration = true;
             break;
         case Options::Opt_Exhaustive:
             exhaustive_enumeration = true;
             /* fallthrough */
-        case Options::Opt_auto: // TODO: Consider join graph, e.g. number of sources or CSGs.
         case Options::Opt_Split:
             use_split_optimizer = true;
             break;
         case Options::Opt_Holistic:
-            use_split_optimizer = false;
+            use_holistic_optimizer = true;
             break;
     }
 
@@ -173,39 +237,42 @@ void QueryDatabase::execute(Diagnostic &diag)
             M_insist(bool(physical_plan_), "physical plan must have been computed");
         }
     } else if (top_k_enumeration) {
-            auto logical_plan_computation = C.timer().create_timing("Compute the top-k logical query plans");
-            TopKOptimizer Opt(C.plan_enumerator(), C.cost_function());
-            std::vector<std::unique_ptr<Producer>> producers = Opt(*graph_);
-            M_insist(producers.size() <= Options::Get().optimizer_top_k);
-            for (auto &producer : producers) {
-                for (auto &post_opt : C.logical_post_optimizations())
-                    producer = (*post_opt.second).operator()(std::move(producer));
-            }
-            logical_plan_computation.stop();
-            M_insist(not producers.empty(), "logical plans must have been computed");
+        auto logical_plan_computation = C.timer().create_timing("Compute the top-k logical query plans");
+        TopKOptimizer Opt(C.plan_enumerator(), C.cost_function());
+        std::vector<std::unique_ptr<Producer>> producers = Opt(*graph_);
+        M_insist(producers.size() <= Options::Get().optimizer_top_k);
+        for (auto &producer : producers) {
+            for (auto &post_opt : C.logical_post_optimizations())
+                producer = (*post_opt.second).operator()(std::move(producer));
+        }
+        logical_plan_computation.stop();
+        M_insist(not producers.empty(), "logical plans must have been computed");
 
-            std::vector<std::unique_ptr<Consumer>> logical_plans;
-            for (auto &producer : producers) {
-                if (Options::Get().plan)
-                    producer->dump(diag.out());
-                if (Options::Get().plandot) {
-                    DotTool dot(diag);
-                    producer->dot(dot.stream());
-                    dot.show("logical_plan", false, "dot");
-                }
-
-                if (Options::Get().benchmark)
-                    logical_plans.push_back(std::make_unique<NoOpOperator>(std::cout));
-                else
-                    logical_plans.push_back(std::make_unique<PrintOperator>(std::cout));
-                logical_plans.back()->add_child(producer.release());
+        std::vector<std::unique_ptr<Consumer>> logical_plans;
+        for (auto &producer : producers) {
+            if (Options::Get().plan)
+                producer->dump(diag.out());
+            if (Options::Get().plandot) {
+                DotTool dot(diag);
+                producer->dot(dot.stream());
+                dot.show("logical_plan", false, "dot");
             }
 
-            auto physical_plan_computation = C.timer().create_timing("Compute the top-k physical query plans");
-            PhysicalOptimizerImpl<ConcretePhysicalPlanTable> PhysOpt;
-            backend->register_operators(PhysOpt);
-            for (auto &logical_plan : logical_plans) {
-                PhysOpt.cover(*logical_plan);
+            if (Options::Get().benchmark)
+                logical_plans.push_back(std::make_unique<NoOpOperator>(std::cout));
+            else
+                logical_plans.push_back(std::make_unique<PrintOperator>(std::cout));
+            logical_plans.back()->add_child(producer.release());
+        }
+
+        auto physical_plan_computation = C.timer().create_timing("Compute the top-k physical query plans");
+        PhysicalOptimizerImpl<ConcretePhysicalPlanTable> PhysOpt;
+        backend->register_operators(PhysOpt);
+        for (auto &logical_plan : logical_plans) {
+            PhysOpt.cover(*logical_plan,
+                          bool(physical_plan_) ? physical_plan_->cost() : std::numeric_limits<double>::infinity());
+            M_insist(bool(physical_plan_) or PhysOpt.has_plan());
+            if (PhysOpt.has_plan()) {
                 auto physical_plan = PhysOpt.extract_plan();
                 for (auto &post_opt : C.physical_post_optimizations())
                     physical_plan = (*post_opt.second).operator()(std::move(physical_plan));
@@ -215,8 +282,9 @@ void QueryDatabase::execute(Diagnostic &diag)
                     physical_plan_ = std::move(physical_plan);
                 }
             }
-            physical_plan_computation.stop();
-    } else { // holistic optimizer
+        }
+        physical_plan_computation.stop();
+    } else if (use_holistic_optimizer) {
         std::unique_ptr<Consumer> consumer;
         if (Options::Get().benchmark)
             consumer = std::make_unique<NoOpOperator>(std::cout);
@@ -229,6 +297,8 @@ void QueryDatabase::execute(Diagnostic &diag)
         for (auto &post_opt : C.physical_post_optimizations())
             physical_plan_ = (*post_opt.second).operator()(std::move(physical_plan_));
         physical_plan_computation.stop();
+    } else {
+        M_unreachable("unknown optimizer");
     }
 
     if (Options::Get().physplan)

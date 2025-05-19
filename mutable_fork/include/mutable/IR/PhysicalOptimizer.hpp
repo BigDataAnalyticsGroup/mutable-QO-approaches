@@ -253,6 +253,10 @@ struct pattern_matcher_base
  * PhysicalOptimizer
  *====================================================================================================================*/
 
+/** Exception class which can be thrown to indicate that no valid match for operator to cover was found, i.e., all
+ * matches were pruned. */
+struct no_match_found { };
+
 /** The physical optimizer interface.
  *
  * The `PhysicalOptimizer` applies a tree covering algorithm (similar to instruction selection used in compilers) using
@@ -263,6 +267,7 @@ struct pattern_matcher_base
 struct PhysicalOptimizer
 {
     static inline std::size_t num_instantiations = 0;
+
     protected:
     ///> all pattern matchers for all registered physical operators
     std::vector<std::unique_ptr<const pattern_matcher_base>> pattern_matchers_;
@@ -278,8 +283,11 @@ struct PhysicalOptimizer
     /** Registers a new physical operator which then may be used to find a covering. */
     template<typename PhysOp> void register_operator();
 
+    /** Initializes cost-based pruning with cost \p cost for logical plan to cover rooted in \p plan. */
+    virtual void initialize_cost_based_pruning(const Operator &plan, double cost) = 0;
+
     /** Finds an optimal physical operator covering for the logical plan rooted in \p plan. */
-    virtual void cover(const Operator &plan) = 0;
+    virtual void cover(const Operator &plan, double cost_based_pruning_init = std::numeric_limits<double>::infinity()) = 0;
 
     /** Returns true iff a physical operator covering is found. */
     virtual bool has_plan() const = 0;
@@ -304,6 +312,12 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
     private:
     ///> dynamic programming table, stores the best covering for each logical operator per unique post-condition
     PhysicalPlanTable table_;
+    ///> cost of currently found best overall physical plan
+    double current_best_overall_cost_ = std::numeric_limits<double>::infinity();
+    ///> logical plan to cover; needed to determine when to update `current_best_overall_cost_`
+    std::optional<std::reference_wrapper<const Operator>> plan_to_cover_;
+    ///> flag to indicate whether a valid match for one operator was found, i.e., not all matches are pruned
+    bool match_found_;
 
     public:
     PhysicalOptimizerImpl() = default;
@@ -312,10 +326,20 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
     PhysicalPlanTable & table() { return table_; }
     const PhysicalPlanTable & table() const { return table_; }
 
-    void cover(const Operator &plan) override {
+    void initialize_cost_based_pruning(const Operator &plan, double cost) override {
+        plan.assign_post_order_ids();
+        current_best_overall_cost_ = cost;
+        plan_to_cover_.emplace(plan);
+    }
+    void reinitialize_cost_based_pruning(double cost) { current_best_overall_cost_ = cost; }
+    double get_cost_based_pruning_bound() const { return current_best_overall_cost_; }
+
+    void cover(const Operator &plan, double cost_based_pruning_init = std::numeric_limits<double>::infinity()) override {
         plan.assign_post_order_ids();
         table().clear();
         table().resize(plan.id() + 1);
+        current_best_overall_cost_ = cost_based_pruning_init;
+        plan_to_cover_.emplace(plan);
         (*this)(plan);
     }
 
@@ -325,7 +349,7 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
     entry_type & get_plan_entry() {
         M_insist(has_plan(), "no physical operator covering found");
         typename PhysicalPlanTable::condition2entry_map_type::iterator it_best;
-        double min_cost = std::numeric_limits<double>::infinity();
+        auto min_cost = std::numeric_limits<cost_type>::infinity();
         for (auto it = table().back().begin(); it != table().back().end(); ++it) {
             if (auto cost = it->entry.cost(); cost < min_cost) {
                 it_best = it;
@@ -351,6 +375,10 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
             cost += child->entry.cost();
         match->cost(cost);
 
+        /* Prune match if cost already exceed cost of currently found best overall physical plan. */
+        if (cost >= current_best_overall_cost_)
+            return;
+
         /* Compute post-condition. */
         auto post_cond = PhysOp::post_condition_(*match);
         if (post_cond.empty()) {
@@ -366,6 +394,14 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
                 post_cond = PhysOp::adapt_post_conditions_(*match, std::move(children_post_conditions));
             }
         }
+
+        /* Prune match if entry implying *that* post-condition with lower cost already exists. */
+        auto it_dominates = std::find_if(table()[op.id()].begin(), table()[op.id()].end(), [&cost, &post_cond](const auto &e) {
+            return post_cond.implied_by(e.condition) and // implies `post_cond`
+                   cost >= e.entry.cost(); // with lower cost
+        });
+        if (it_dominates != table()[op.id()].end())
+            return;
 
         /* Compare to the best physical operator matched so far for *that* post-condition (equality and implication). */
         auto it_equal = std::find_if(table()[op.id()].begin(), table()[op.id()].end(), [&post_cond](const auto &e) {
@@ -389,6 +425,7 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
         M_insist(it_equal == table()[op.id()].end() or it_implied != table()[op.id()].end());
 
         /* Update table and physical operator cost. */
+        match_found_ = true; // non-pruned match found
         if (it_implied == table()[op.id()].end()) {
             table()[op.id()].insert(std::move(post_cond), entry_type(std::move(match), children, cost));
         } else {
@@ -406,6 +443,13 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
                 }
             }
         }
+        ++PhysicalOptimizer::num_instantiations;
+
+        /* If pruning is enabled and plan to cover is matched, update currently found best cost. */
+        const auto pruning_enabled =
+            Options::Get().enable_initialized_cost_based_pruning or Options::Get().enable_branch_and_bound_pruning;
+        if (pruning_enabled and plan_to_cover_ and op.id() == plan_to_cover_->get().id())
+            current_best_overall_cost_ = cost;
     }
 
     /*----- OperatorVisitor ------------------------------------------------------------------------------------------*/
@@ -413,8 +457,10 @@ struct PhysicalOptimizerImpl : PhysicalOptimizer, ConstPostOrderOperatorVisitor
     using ConstPostOrderOperatorVisitor::operator();
 #define DECLARE(CLASS) \
     void operator()(const CLASS &op) override { \
+        match_found_ = false; \
         for (const auto &matcher : pattern_matchers_) \
             matcher->matches(*this, op); \
+        if (Options::Get().enable_branch_and_bound_pruning and not match_found_) throw no_match_found{}; \
     }
     M_OPERATOR_LIST(DECLARE)
 #undef DECLARE
@@ -514,7 +560,6 @@ struct PhysicalOperator : crtp<Actual, PhysicalOperator, Pattern>
     template<typename It>
     static std::unique_ptr<Match<Actual>>
     instantiate(get_nodes_t<Pattern> inner_nodes, const std::vector<It> &children) {
-        ++PhysicalOptimizer::num_instantiations;
         std::vector<unsharable_shared_ptr<const MatchBase>> children_matches;
         children_matches.reserve(children.size());
         for (const auto &child : children)

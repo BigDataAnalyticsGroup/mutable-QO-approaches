@@ -69,6 +69,10 @@ struct M_EXPORT Options
     OptimizerType optimizer_type = Opt_auto;
     /** The hyper-parameter k for top-k query optimization. */
     std::size_t optimizer_top_k;
+    /** If `true`, enable initialized cost based pruning for holistic optimization using GOO. */
+    bool enable_initialized_cost_based_pruning;
+    /** If `true`, enable branch-and-bound pruning for holistic optimization for TDbasic. */
+    bool enable_branch_and_bound_pruning;
 
     /** The type of plan table to use for query optimization. */
     PlanTableType plan_table_type = PT_auto;

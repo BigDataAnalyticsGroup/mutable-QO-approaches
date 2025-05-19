@@ -260,8 +260,9 @@ void m::wasm::detail::_throw(const v8::FunctionCallbackInfo<v8::Value> &info)
 
 #ifdef NDEBUG
     /* Print message of thrown exception in release build as it is not printed by default if the exception is never
-     * catched (which seems to be impossible since the `_throw()` callback itself cannot be enclosed by a
+     * caught (which seems to be impossible since the `_throw()` callback itself cannot be enclosed by a
      * try-catch-block at host side). */
+    std::cout.flush();
     std::cerr << oss.str() << std::endl;
 #endif
 
@@ -289,8 +290,8 @@ void m::wasm::detail::print_memory_consumption(const v8::FunctionCallbackInfo<v8
 {
     M_insist(Options::Get().statistics);
 
-    auto alloc_total_mem = info[0].As<v8::Uint32>()->Value();
-    auto alloc_peak_mem = info[1].As<v8::Uint32>()->Value();
+    auto alloc_total_mem = info[0].As<v8::BigInt>()->Uint64Value();
+    auto alloc_peak_mem = info[1].As<v8::BigInt>()->Uint64Value();
 
     std::cout << "Allocated memory overall consumption: " << alloc_total_mem / (1024.0 * 1024.0) << " MiB"<< std::endl;
     std::cout << "Allocated memory peak consumption: " << alloc_peak_mem / (1024.0 * 1024.0) << " MiB"<< std::endl;
@@ -800,7 +801,7 @@ void V8Engine::compile(const m::MatchBase &plan) const
 #if 1
     /*----- Add print function. --------------------------------------------------------------------------------------*/
     Module::Get().emit_function_import<void(uint32_t)>("print");
-    Module::Get().emit_function_import<void(uint32_t, uint32_t)>("print_memory_consumption");
+    Module::Get().emit_function_import<void(uint64_t, uint64_t)>("print_memory_consumption");
 #endif
 
     /*----- Emit code for run function which computes the last pipeline and calls other pipeline functions. ----------*/
@@ -829,9 +830,6 @@ void V8Engine::compile(const m::MatchBase &plan) const
 
     /*----- Export main. ---------------------------------------------------------------------------------------------*/
     Module::Get().emit_function_export("main");
-
-    /*----- Perform memory pre-allocations. --------------------------------------------------------------------------*/
-    Module::Allocator().perform_pre_allocations();
 
     /*----- Dump the generated WebAssembly code ----------------------------------------------------------------------*/
     if (options::wasm_dump)
@@ -918,7 +916,6 @@ void V8Engine::execute(const m::MatchBase &plan)
 
         auto imports = v8::Object::New(isolate_);
         auto env = create_env(*isolate_, plan);
-        M_DISCARD imports->Set(context, mkstr(*isolate_, "imports"), env);
 
         /* Map the remaining address space to the output buffer. */
         M_insist(Is_Page_Aligned(wasm_context.heap));
@@ -929,6 +926,11 @@ void V8Engine::execute(const m::MatchBase &plan)
         auto compile_time = C.timer().create_timing("Compile SQL to machine code");
         /* Compile the plan and thereby build the Wasm module. */
         M_TIME_EXPR(compile(plan), "|- Compile SQL to WebAssembly", C.timer());
+        /* Perform memory pre-allocations and add allocation address initialization to env. */
+        Module::Get().emit_import<uint64_t>("alloc_addr_init");
+        M_DISCARD env->Set(isolate_->GetCurrentContext(), to_v8_string(isolate_, "alloc_addr_init"),
+                           v8::BigInt::New(isolate_, Module::Allocator().perform_pre_allocations()));
+        M_DISCARD imports->Set(context, mkstr(*isolate_, "imports"), env);
         /* Create a WebAssembly instance object. */
         auto instance = M_TIME_EXPR(instantiate(*isolate_, imports), " ` Compile WebAssembly to machine code", C.timer());
         compile_time.stop();

@@ -214,8 +214,8 @@ struct HolisticPlanTable
         swap(first.current_entry_,     second.current_entry_);
     }
 
-    private:
     std::optional<std::reference_wrapper<PhysicalOptimizerImpl<HolisticPlanTable>>> phys_opt_;
+    private:
     std::optional<std::reference_wrapper<std::vector<std::unique_ptr<Operator>>>> created_log_plans_;
     std::optional<std::reference_wrapper<PlanTableEntry>> current_entry_;
     bool enable_fused_operators_ = false;
@@ -282,11 +282,11 @@ struct HolisticPlanTable
     const PlanTableEntry & get_final() const { return const_cast<HolisticPlanTable*>(this)->get_final(); }
 
     cost_type c(Subproblem s) const {
-        M_insist(has_plan(s));
         auto &map = as<condition2entry_map_type>(*operator[](s).data);
-        return std::ranges::min(range(map.cbegin(), map.cend()), std::ranges::less{}, [](auto it){
-            return it->entry.cost();
-        });
+        cost_type min_cost = std::numeric_limits<cost_type>::infinity();
+        for (auto &p : map)
+            min_cost = std::min(min_cost, p.entry.cost());
+        return min_cost;
     }
 
     bool has_plan(Subproblem s) const { return not as<condition2entry_map_type>(*operator[](s).data).empty(); }

@@ -260,7 +260,20 @@ namespace m {
     X(ISAM<M_COMMA(m::idx::IndexMethod::Array) 9>) \
     X(ISAM<M_COMMA(m::idx::IndexMethod::Array) 10>) \
     X(ISAM<M_COMMA(m::idx::IndexMethod::Array) 11>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 0>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 1>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 2>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 3>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 4>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 5>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 6>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 7>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 8>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 9>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 10>) \
+    X(ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 11>) \
     X(IndexScan<m::idx::IndexMethod::Array>) \
+    X(IndexScan<m::idx::IndexMethod::Rmi>) \
     X(Filter<false>) \
     X(Filter<true>) \
     X(Quicksort<false>) \
@@ -313,7 +326,20 @@ namespace m {
     X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Array) 9>>) \
     X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Array) 10>>) \
     X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Array) 11>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 0>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 1>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 2>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 3>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 4>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 5>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 6>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 7>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 8>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 9>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 10>>) \
+    X(m::Match<m::wasm::ISAM<M_COMMA(m::idx::IndexMethod::Rmi) 11>>) \
     X(m::Match<m::wasm::IndexScan<m::idx::IndexMethod::Array>>) \
+    X(m::Match<m::wasm::IndexScan<m::idx::IndexMethod::Rmi>>) \
     X(m::Match<m::wasm::Filter<false>>) \
     X(m::Match<m::wasm::Filter<true>>) \
     X(m::Match<m::wasm::Quicksort<false>>) \
@@ -413,7 +439,7 @@ template<bool SIMDfied>
 struct Scan : PhysicalOperator<Scan<SIMDfied>, ScanOperator>
 {
     static void execute(const Match<Scan> &M, setup_t setup, pipeline_t pipeline, teardown_t teardown);
-    static double cost(const Match<Scan>&) { return 1.0; }
+    static double cost(const Match<Scan>&) { return M_CONSTEXPR_COND(SIMDfied, 1.0, 2.0); }
     static ConditionSet pre_condition(std::size_t child_idx,
                                       const std::tuple<const ScanOperator*> &partial_inner_nodes);
     static ConditionSet post_condition(const Match<Scan> &M);

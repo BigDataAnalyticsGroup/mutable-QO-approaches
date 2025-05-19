@@ -3,9 +3,6 @@
 # GENERAL
 #-----------------------------------------------------------------------------------------------------------------------
 
-variables:
-    PYTHON_VERSION: "3.10"
-
 default:
     before_script:
         - >
@@ -43,22 +40,28 @@ stages:
     - upload
     - publish
 
-.build_cache:
+.use_cache:
+    variables:
+        CCACHE_BASEDIR: "${CI_PROJECT_DIR}"
+        CCACHE_DIR: "${CI_PROJECT_DIR}/.ccache"
+        CMAKE_C_COMPILER_LAUNCHER: "ccache"      # use ccache for project and third-parties configured with cmake
+        CMAKE_CXX_COMPILER_LAUNCHER: "ccache"    # use ccache for project and third-parties configured with cmake
     cache:
-        - key: "third-party"
+        - key: "ccache"
           paths:
-              - "third-party"
-              - "build/{debug,release,coverage}/**/*-download"                          # cache CMake download stamps
-              - "build/{debug,release,coverage}/**/*-gitclone-lastrun.txt"              # cache CMake Git stamps
-              - "build/{debug,release,coverage}/**/*-gitinfo.txt"                       # cache CMake Git stamps
-              - "build/{debug,release,coverage}/**/*-configure"                         # cache CMake configure stamps
-
-        - key: "build:${BUILD_TYPE}:${LIBRARY_TYPE}"
+              - ".ccache"                                      # cache ccache cache
+        - key: "V8:${BUILD_TYPE}:${LIBRARY_TYPE}"
           paths:
-              - "build/${BUILD_TYPE}/bin"                                               # cache our executables
-              - "build/${BUILD_TYPE}/lib/libmutable.{a,so,dylib,dll}"                   # cache our library
-              - "build/${BUILD_TYPE}/third-party/src/*-build"                           # cache third-party build
-              - "build/${BUILD_TYPE}/src/**/*.o"                                        # cache all object files
+              - "third-party/v8"                               # cache v8 code
+              - "build/${BUILD_TYPE}/third-party/src/V8-stamp" # cache V8 build
+              - "build/${BUILD_TYPE}/third-party/src/V8-build" # cache V8 build
+    before_script:
+        - echo "Using ccache, caching in ${CCACHE_DIR}."
+        - ccache --max-size=5G
+        - ccache --zero-stats
+        - ccache --show-stats
+    after_script:
+        - ccache --show-stats
 
 .static:
     variables:
@@ -118,6 +121,22 @@ check:syntax:
     script:
         - echo ${CI_COMMIT_BEFORE_SHA} ${CI_COMMIT_SHA} ${CI_COMMIT_REF_NAME} | hooks/pre-receive
 
+check:pipenv:linux-amd64:
+    stage: check
+    tags:
+        - linux
+        - amd64
+    script:
+        - pipenv sync
+
+check:pipenv:macos-amd64:
+    stage: check
+    tags:
+        - macos
+        - amd64
+    script:
+        - pipenv sync
+
 
 #-----------------------------------------------------------------------------------------------------------------------
 # DEBUG BUILD
@@ -131,10 +150,9 @@ build:debug:linux-amd64:
     extends:
         - .debug
         - .shared
-        - .build_cache
+        - .use_cache
     script:
-        - pipenv --python $PYTHON_VERSION sync
-        - pipenv run cmake -S . -B build/${BUILD_TYPE}
+        - cmake -S . -B build/${BUILD_TYPE}
           --fresh
           -G Ninja
           -DCMAKE_C_COMPILER=clang
@@ -144,8 +162,8 @@ build:debug:linux-amd64:
           -DWITH_V8=ON
           -DENABLE_SANITIZERS=ON
           -DENABLE_SANITY_FIELDS=ON
-        - pipenv run cmake --build build/${BUILD_TYPE} --target Boost gitversion
-        - pipenv run cmake --build build/${BUILD_TYPE} --target all unittest
+        - cmake --build build/${BUILD_TYPE} --target Boost gitversion
+        - cmake --build build/${BUILD_TYPE} --target all unittest
         - find build/${BUILD_TYPE}/third-party -name '*.so' -exec cp {} build/${BUILD_TYPE}/lib \; # collect shared libraries
         - find build/${BUILD_TYPE}/third-party -name '*.so.*' -exec cp {} build/${BUILD_TYPE}/lib \; # collect shared libraries
     artifacts:
@@ -162,10 +180,9 @@ build:debug:macos-amd64:
     extends:
         - .debug
         - .shared
-        - .build_cache
+        - .use_cache
     script:
-        - pipenv --python $PYTHON_VERSION sync
-        - pipenv run cmake -S . -B build/${BUILD_TYPE}
+        - cmake -S . -B build/${BUILD_TYPE}
           --fresh
           -G Ninja
           -DCMAKE_C_COMPILER=$(brew --prefix llvm@17)/bin/clang
@@ -175,10 +192,9 @@ build:debug:macos-amd64:
           -DWITH_V8=ON
           -DENABLE_SANITIZERS=ON
           -DENABLE_SANITY_FIELDS=ON
-        - pipenv run cmake --build build/${BUILD_TYPE} --target Boost gitversion
-        - pipenv run cmake --build build/${BUILD_TYPE} --target all unittest
+        - cmake --build build/${BUILD_TYPE} --target Boost gitversion
+        - cmake --build build/${BUILD_TYPE} --target all unittest
         - find build/${BUILD_TYPE}/third-party -name '*.dylib' -exec cp {} build/${BUILD_TYPE}/lib \; # collect shared libraries
-        - find build/${BUILD_TYPE}/third-party -name '*.dylib.*' -exec cp {} build/${BUILD_TYPE}/lib \; # collect shared libraries
     artifacts:
         paths:
             - "build/${BUILD_TYPE}/bin/{lex,parse,check,shell,unittest}"
@@ -199,7 +215,7 @@ unittest:linux-amd64:
         - job: "build:debug:linux-amd64"
           artifacts: true
     script:
-        - pipenv --python $PYTHON_VERSION sync
+        - pipenv sync
         - env pipenv run utils/unittest-parallel.py -r --out unittest-sanity.xml build/debug/bin/unittest -t '[test-sanity]' || true
         - head -n1 unittest-sanity.xml | perl -n -e '/errors="(\d+)" failures="(\d+)" tests="(\d+)/ && exit ($1 != 2 or $2 != 1 or $3 != 2)'  # we expect 2 errors (abort & segv), one failure (failure), and two tests run (failure & success)
         - env UBSAN_OPTIONS=print_stacktrace=1 ASAN_OPTIONS=detect_stack_use_after_return=1 pipenv run utils/unittest-parallel.py -r --out unittest-results.xml build/debug/bin/unittest
@@ -220,7 +236,7 @@ unittest:macos-amd64:
         - job: "build:debug:macos-amd64"
           artifacts: true
     script:
-        - pipenv --python $PYTHON_VERSION sync
+        - pipenv sync
         - env pipenv run utils/unittest-parallel.py -r --out unittest-sanity.xml build/debug/bin/unittest -t '[test-sanity]' || true
         - head -n1 unittest-sanity.xml | perl -n -e '/errors="(\d+)" failures="(\d+)" tests="(\d+)/ && exit ($1 != 2 or $2 != 1 or $3 != 2)'  # we expect 2 errors (abort & segv), one failure (failure), and two tests run (failure & success)
         - env UBSAN_OPTIONS=print_stacktrace=1 ASAN_OPTIONS=detect_stack_use_after_return=1:detect_container_overflow=0 MallocNanoZone=0 pipenv run utils/unittest-parallel.py -r --out unittest-results.xml build/debug/bin/unittest
@@ -241,7 +257,7 @@ integrationtest:linux-amd64:
         - job: "build:debug:linux-amd64"
           artifacts: true
     script:
-        - pipenv --python $PYTHON_VERSION sync
+        - pipenv sync
         - env UBSAN_OPTIONS=print_stacktrace=1 ASAN_OPTIONS=detect_stack_use_after_return=1 --unset=TERM pipenv run test/IntegrationTest.py --required-only --debug --builddir build/debug
 
 integrationtest:macos-amd64:
@@ -253,7 +269,7 @@ integrationtest:macos-amd64:
         - job: "build:debug:macos-amd64"
           artifacts: true
     script:
-        - pipenv --python $PYTHON_VERSION sync
+        - pipenv sync
         - env UBSAN_OPTIONS=print_stacktrace=1 ASAN_OPTIONS=detect_stack_use_after_return=1:detect_container_overflow=0 MallocNanoZone=0 --unset=TERM pipenv run test/IntegrationTest.py --required-only --debug --builddir build/debug
 
 ensure-exported-symbols:debug:linux:
@@ -295,7 +311,7 @@ build:release:linux-amd64:
     extends:
         - .release
         - .static
-        - .build_cache
+        - .use_cache
     script:
         - cmake -S . -B build/${BUILD_TYPE}
           --fresh
@@ -327,7 +343,7 @@ build:release:macos-amd64:
     extends:
         - .release
         - .static
-        - .build_cache
+        - .use_cache
     script:
         - cmake -S . -B build/${BUILD_TYPE}
           --fresh
@@ -402,7 +418,7 @@ benchmark-test:release:linux-amd64:
         - wget 'https://github.com/duckdb/duckdb/releases/download/v0.10.2/duckdb_cli-linux-amd64.zip'
         - unzip 'duckdb_cli-linux-amd64.zip' -d 'benchmark/database_connectors/'
         # Run benchmarks
-        - pipenv --python $PYTHON_VERSION sync
+        - pipenv sync
         - env pipenv run benchmark/Benchmark.py -v -b mutable -o dummy.csv benchmark/dummy
         # Validate results
         - cat dummy.csv | perl -n -e '/dummy,Dummy,(.*),Execution Time/ && print "$1\n"' | sort | uniq > names.txt  # collect system names
@@ -458,7 +474,7 @@ report:coverage:
     extends:
         - .coverage
         - .shared
-        - .build_cache
+        - .use_cache
     rules:
         - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
           when: on_success

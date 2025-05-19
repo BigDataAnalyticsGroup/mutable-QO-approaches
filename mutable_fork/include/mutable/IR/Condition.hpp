@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <typeindex>
 #include <unordered_map>
+#include <unordered_set>
 
 
 namespace m {
@@ -194,6 +195,56 @@ struct Sortedness final : Condition
         auto other = cast<const Sortedness>(&o);
         if (not other) return false;
         return this->orders_ == other->orders_;
+    }
+};
+
+/** Represents that contained identifiers are joined in a top-level operator. Used to distinguish between different
+ * join orders, e.g., when holistically optimizing for fused operators. */
+struct Joined final : Condition
+{
+    private:
+    std::unordered_set<Schema::Identifier> identifiers_;
+
+    public:
+    explicit Joined(std::unordered_set<Schema::Identifier> identifiers) : identifiers_(std::move(identifiers)) { }
+
+    Joined() = default;
+    explicit Joined(const Joined&) = default;
+    Joined(Joined&&) = default;
+
+    private:
+    std::unique_ptr<Condition> clone() const override { return std::make_unique<Joined>(identifiers_); }
+
+    public:
+    std::unordered_set<Schema::Identifier> & identifiers() { return identifiers_; }
+    const std::unordered_set<Schema::Identifier> & identifiers() const { return identifiers_; }
+
+    bool implied_by(const Condition &o) const override {
+        auto other = cast<const Joined>(&o);
+        if (not other) return false;
+
+        for (auto &id : identifiers_) {
+            if (not other->identifiers_.contains(id))
+                return false; // attribute not found
+        }
+        return true;
+    }
+
+    void project_and_rename(const std::vector<std::pair<Schema::Identifier, Schema::Identifier>> &old2new) override {
+        auto old = std::exchange(this->identifiers_, std::unordered_set<Schema::Identifier>());
+        for (auto &[old_id, new_id] : old2new) {
+            /*----- Try to find the entry with the old ID. -----*/
+            if (old.contains(old_id)) {
+                /*----- Insert found entry again with the new ID. -----*/
+                this->identifiers_.emplace(new_id);
+            }
+        }
+    }
+
+    bool operator==(const Condition &o) const override {
+        auto other = cast<const Joined>(&o);
+        if (not other) return false;
+        return this->identifiers_ == other->identifiers_;
     }
 };
 
