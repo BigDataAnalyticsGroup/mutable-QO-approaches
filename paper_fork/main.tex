@@ -4,45 +4,47 @@
 
 \documentclass[sigconf,nonacm]{acmart}
 
-\let\Bbbk\relax %TODO not contained in template
+\let\Bbbk\relax
 
-%% The following content must be adapted for the final version TODO adapt
+%% The following content must be adapted for the final version
 % paper-specific
 \newcommand\vldbdoi{XX.XX/XXX.XX}
 \newcommand\vldbpages{XXX-XXX}
 % issue-specific
 \newcommand\vldbvolume{18}
-\newcommand\vldbissue{1}
+\newcommand\vldbissue{11}
 \newcommand\vldbyear{2025}
 % should be fine as it is
 \newcommand\vldbauthors{\authors}
 \newcommand\vldbtitle{\shorttitle}
 % leave empty if no availability url should be set
 \newcommand\vldbavailabilityurl{https://github.com/BigDataAnalyticsGroup/mutable-QO-approaches/tree/submission}
-% whether page numbers should be shown or not, use 'plain' for review versions, 'empty' for camera ready TODO adapt
-\newcommand\vldbpagestyle{plain}
-
-% Sloppy
-%\sloppy %TODO test this
+% whether page numbers should be shown or not, use 'plain' for review versions, 'empty' for camera ready
+\newcommand\vldbpagestyle{empty}
 
 \include{pkgs}
 \include{defs}
 
 \begin{document}
-\title{How to Optimize SQL Queries?\\A Comparison Between Split, Holistic, and Hybrid Approaches\\{[Experiment, Analysis \& Benchmark]}}
+\title{How to Optimize SQL Queries?\\A Comparison Between Split, Holistic, and Hybrid Approaches}
 
 %%
 %% The "author" command and its associated commands are used to define the authors and their affiliations.
 \author{Luca Gretscher}
 \affiliation{%
-  \institution{Saarland University\\Saarland Informatics Campus}
+  \institution{Saarland University, Saarland Informatics Campus}
+  \city{Saarbr{\"u}cken}
+  \state{Germany}
 }
-%\email{luca.gretscher@bigdata.uni-saarland.de}
+\email{luca.gretscher@bigdata.uni-saarland.de}
+
 \author{Jens Dittrich}
 \affiliation{%
-  \institution{Saarland University\\Saarland Informatics Campus}
+  \institution{Saarland University, Saarland Informatics Campus}
+  \city{Saarbr{\"u}cken}
+  \state{Germany}
 }
-%\email{jens.dittrich@bigdata.uni-saarland.de}
+\email{jens.dittrich@bigdata.uni-saarland.de}
 
 %%
 %% The abstract is a short summary of the work to be presented in the
@@ -84,10 +86,6 @@ The source code, data, and/or other artifacts have been made available at \url{\
 \input{related}
 \input{conclusion}
 
-%\begin{acks} TODO add?
-%    This work was supported by the [...] Research Fund of [...] (Number [...]). Additional funding was provided by [...] and [...]. We also thank [...] for contributing [...].
-%\end{acks}
-
 %\clearpage
 \balance
 
@@ -96,4 +94,3 @@ The source code, data, and/or other artifacts have been made available at \url{\
 
 \end{document}
 \endinput
-
